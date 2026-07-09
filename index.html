@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Terraform AWS Learning Modules</title>
+<style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --brand-primary:   #7B42BC;
+      --brand-secondary: #FF9900;
+      --brand-dark:      #1a1a2e;
+      --brand-darker:    #0f0f1a;
+      --text-primary:    #1f2933;
+      --text-muted:      #6b7280;
+      --surface:         #ffffff;
+      --surface-alt:     #f9fafb;
+      --border:          #e5e7eb;
+      --radius:          8px;
+      --shadow:          0 4px 24px rgba(0,0,0,0.08);
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text-primary);
+      background: var(--surface-alt);
+      line-height: 1.6;
+    }
+
+    /* ── HERO ─────────────────────────────────────────────────────── */
+    .hero {
+      background: linear-gradient(135deg, var(--brand-darker) 0%, #16213e 50%, #1a1a2e 100%);
+      color: #fff;
+      padding: 5rem 2rem 4rem;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse at 20% 50%, rgba(123,66,188,0.25) 0%, transparent 60%),
+        radial-gradient(ellipse at 80% 20%, rgba(255,153,0,0.15) 0%, transparent 50%);
+      pointer-events: none;
+    }
+
+    .hero-inner { position: relative; max-width: 800px; margin: 0 auto; }
+
+    .hero-eyebrow {
+      display: inline-block;
+      background: rgba(123,66,188,0.3);
+      border: 1px solid rgba(123,66,188,0.5);
+      color: #c4b5fd;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 0.35rem 1rem;
+      border-radius: 999px;
+      margin-bottom: 1.5rem;
+    }
+
+    .hero h1 {
+      font-size: clamp(2rem, 5vw, 3.25rem);
+      font-weight: 800;
+      line-height: 1.15;
+      margin-bottom: 1.25rem;
+      letter-spacing: -0.02em;
+    }
+
+    .hero h1 span { color: #a78bfa; }
+
+    .hero p {
+      font-size: 1.15rem;
+      color: #cbd5e1;
+      max-width: 600px;
+      margin: 0 auto 2.5rem;
+    }
+
+    .badge-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+      justify-content: center;
+      margin-bottom: 2.5rem;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.15);
+      color: #e2e8f0;
+      font-size: 0.78rem;
+      font-weight: 600;
+      padding: 0.3rem 0.75rem;
+      border-radius: 999px;
+    }
+
+    .badge .dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: #a78bfa;
+      flex-shrink: 0;
+    }
+    .badge .dot.orange { background: #FF9900; }
+    .badge .dot.green  { background: #34d399; }
+    .badge .dot.blue   { background: #60a5fa; }
+
+    .hero-cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: var(--brand-primary);
+      color: #fff;
+      font-weight: 700;
+      font-size: 1rem;
+      padding: 0.85rem 2rem;
+      border-radius: var(--radius);
+      text-decoration: none;
+      transition: background 0.2s, transform 0.15s;
+      box-shadow: 0 4px 16px rgba(123,66,188,0.4);
+    }
+    .hero-cta:hover { background: #6d28d9; transform: translateY(-2px); }
+
+    /* ── LAYOUT ───────────────────────────────────────────────────── */
+    .container { max-width: 1100px; margin: 0 auto; padding: 0 2rem; }
+
+    section { padding: 4rem 0; }
+
+    .section-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--brand-primary);
+      margin-bottom: 0.5rem;
+    }
+
+    .section-title {
+      font-size: clamp(1.5rem, 3vw, 2rem);
+      font-weight: 800;
+      color: var(--text-primary);
+      margin-bottom: 0.75rem;
+      letter-spacing: -0.02em;
+    }
+
+    .section-subtitle {
+      color: var(--text-muted);
+      font-size: 1.05rem;
+      max-width: 600px;
+      margin-bottom: 3rem;
+    }
+
+    /* ── MODULE CARDS ─────────────────────────────────────────────── */
+    .modules-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(480px, 1fr));
+      gap: 1.75rem;
+    }
+
+    @media (max-width: 560px) {
+      .modules-grid { grid-template-columns: 1fr; }
+    }
+
+    .module-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .module-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.12);
+    }
+
+    .card-header {
+      padding: 1.5rem 1.75rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+    }
+
+    .card-icon {
+      width: 52px; height: 52px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.6rem;
+      flex-shrink: 0;
+    }
+
+    .card-icon.m1 { background: #eff6ff; }
+    .card-icon.m2 { background: #f5f3ff; }
+    .card-icon.m3 { background: #ecfdf5; }
+    .card-icon.m4 { background: #fffbeb; }
+
+    .card-meta { flex: 1; }
+
+    .card-number {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 0.2rem;
+    }
+
+    .card-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      line-height: 1.3;
+    }
+
+    .card-body { padding: 1.25rem 1.75rem; flex: 1; }
+
+    .card-description {
+      color: var(--text-muted);
+      font-size: 0.92rem;
+      margin-bottom: 1.1rem;
+      line-height: 1.6;
+    }
+
+    .flow-diagram {
+      background: #0f172a;
+      border-radius: 6px;
+      padding: 0.75rem 1rem;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 0.78rem;
+      color: #94a3b8;
+      margin-bottom: 1.1rem;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+
+    .flow-diagram .arrow { color: #60a5fa; }
+    .flow-diagram .service { color: #a78bfa; font-weight: 600; }
+    .flow-diagram.m1 .service { color: #60a5fa; }
+    .flow-diagram.m2 .service { color: #c4b5fd; }
+    .flow-diagram.m3 .service { color: #6ee7b7; }
+    .flow-diagram.m4 .service { color: #fcd34d; }
+
+    .tag-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .tag {
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0.2rem 0.6rem;
+      border-radius: 999px;
+      border: 1px solid;
+    }
+
+    .tag.m1 { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+    .tag.m2 { background: #f5f3ff; color: #5b21b6; border-color: #ddd6fe; }
+    .tag.m3 { background: #ecfdf5; color: #065f46; border-color: #a7f3d0; }
+    .tag.m4 { background: #fffbeb; color: #92400e; border-color: #fde68a; }
+
+    .card-stats {
+      display: flex;
+      gap: 1.5rem;
+      padding: 0.75rem 0;
+      border-top: 1px solid var(--border);
+      margin-bottom: 1.25rem;
+    }
+
+    .stat { text-align: center; }
+    .stat-value { font-size: 1.1rem; font-weight: 800; color: var(--text-primary); }
+    .stat-label { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+
+    .card-footer { padding: 0 1.75rem 1.5rem; }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-weight: 700;
+      font-size: 0.9rem;
+      padding: 0.65rem 1.25rem;
+      border-radius: var(--radius);
+      text-decoration: none;
+      transition: all 0.2s;
+      width: 100%;
+      justify-content: center;
+    }
+
+    .btn-m1 { background: #2563eb; color: #fff; }
+    .btn-m1:hover { background: #1d4ed8; }
+    .btn-m2 { background: #7c3aed; color: #fff; }
+    .btn-m2:hover { background: #6d28d9; }
+    .btn-m3 { background: #059669; color: #fff; }
+    .btn-m3:hover { background: #047857; }
+    .btn-m4 { background: #d97706; color: #fff; }
+    .btn-m4:hover { background: #b45309; }
+
+    /* ── FEATURES STRIP ───────────────────────────────────────────── */
+    .features { background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 2rem;
+    }
+
+    .feature { display: flex; gap: 1rem; align-items: flex-start; }
+
+    .feature-icon {
+      font-size: 1.5rem;
+      width: 44px; height: 44px;
+      background: #f5f3ff;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .feature-title { font-weight: 700; font-size: 0.95rem; margin-bottom: 0.2rem; }
+    .feature-desc  { font-size: 0.85rem; color: var(--text-muted); }
+
+    /* ── RESOURCES TABLE ──────────────────────────────────────────── */
+    .resources { background: var(--surface-alt); }
+
+    .resources-table-wrap { overflow-x: auto; border-radius: var(--radius); box-shadow: var(--shadow); }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--surface);
+      font-size: 0.875rem;
+    }
+
+    thead th {
+      background: var(--brand-dark);
+      color: #e2e8f0;
+      padding: 0.75rem 1rem;
+      text-align: left;
+      font-size: 0.8rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    tbody td {
+      padding: 0.65rem 1rem;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: #f8fafc; }
+
+    .resource-name {
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 0.82rem;
+      color: #1e3a5f;
+      background: #eff6ff;
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      white-space: nowrap;
+    }
+
+    .module-dot {
+      display: inline-block;
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-align: center;
+      line-height: 22px;
+      margin: 0 2px;
+    }
+    .dot-1 { background: #dbeafe; color: #1d4ed8; }
+    .dot-2 { background: #ede9fe; color: #5b21b6; }
+    .dot-3 { background: #d1fae5; color: #065f46; }
+    .dot-4 { background: #fef3c7; color: #92400e; }
+
+    /* ── PREREQUISITES ────────────────────────────────────────────── */
+    .prereqs { background: var(--surface); }
+
+    .prereq-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .prereq-card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem 1.5rem;
+      background: var(--surface-alt);
+    }
+
+    .prereq-card h4 { font-size: 0.95rem; font-weight: 700; margin-bottom: 0.4rem; }
+    .prereq-card p  { font-size: 0.875rem; color: var(--text-muted); }
+    .prereq-card code {
+      background: #f1f5f9;
+      padding: 0.1rem 0.4rem;
+      border-radius: 4px;
+      font-size: 0.82rem;
+      color: #0f172a;
+      font-family: "SFMono-Regular", Consolas, monospace;
+    }
+
+    pre.code-block {
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 1.25rem 1.5rem;
+      border-radius: var(--radius);
+      overflow-x: auto;
+      font-size: 0.875rem;
+      line-height: 1.6;
+      font-family: "SFMono-Regular", Consolas, monospace;
+    }
+
+    /* ── FOOTER ───────────────────────────────────────────────────── */
+    footer {
+      background: var(--brand-darker);
+      color: #94a3b8;
+      text-align: center;
+      padding: 2.5rem 2rem;
+      font-size: 0.875rem;
+    }
+
+    footer a { color: #a78bfa; text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+
+    .footer-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+      justify-content: center;
+      margin-bottom: 1.25rem;
+    }
+
+    .divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 0;
+    }
+
+    /* ── RESPONSIVE ───────────────────────────────────────────────── */
+    @media (max-width: 768px) {
+      .hero { padding: 3.5rem 1.5rem 3rem; }
+      section { padding: 3rem 0; }
+      .container { padding: 0 1.25rem; }
+    }
+  </style>
+</head>
+<body>
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- HERO                                                          -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<header class="hero">
+<div class="hero-inner">
+<div class="hero-eyebrow">🏗️ Terraform × AWS · Learning Series</div>
+<h1>Build Real AWS Workflows<br/><span>with Terraform</span></h1>
+<p>
+        Four production-style, scenario-driven modules that teach you to provision
+        and connect AWS services end-to-end — no toy examples, no hand-waving.
+      </p>
+<div class="badge-row">
+<span class="badge"><span class="dot"></span>Terraform ≥ 1.5</span>
+<span class="badge"><span class="dot orange"></span>AWS Provider ~&gt; 6.0</span>
+<span class="badge"><span class="dot green"></span>90 AWS Resources</span>
+<span class="badge"><span class="dot blue"></span>4,000+ Lines of HCL</span>
+<span class="badge"><span class="dot"></span>Apache 2.0 License</span>
+</div>
+<a class="hero-cta" href="#modules">
+<svg fill="none" height="18" stroke="currentColor" stroke-width="2.5" viewbox="0 0 24 24" width="18"><path d="M12 5v14M5 12l7 7 7-7"></path></svg>
+        Explore the Modules
+      </a>
+</div>
+</header>
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- FEATURES STRIP                                                -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<section class="features">
+<div class="container">
+<div class="features-grid">
+<div class="feature">
+<div class="feature-icon">🎯</div>
+<div>
+<div class="feature-title">Architect-Level Depth</div>
+<div class="feature-desc">Real IAM roles, retry policies, event patterns, and observability — not simplified demos.</div>
+</div>
+</div>
+<div class="feature">
+<div class="feature-icon">✅</div>
+<div>
+<div class="feature-title">Provider-Accurate HCL</div>
+<div class="feature-desc">All code validated against AWS Provider v6.53.0. No deprecated arguments, no invented fields.</div>
+</div>
+</div>
+<div class="feature">
+<div class="feature-icon">🔗</div>
+<div>
+<div class="feature-title">End-to-End Wiring</div>
+<div class="feature-desc">Each module shows how resources reference each other to form implicit dependency graphs.</div>
+</div>
+</div>
+<div class="feature">
+<div class="feature-icon">📦</div>
+<div>
+<div class="feature-title">Zero Dependencies</div>
+<div class="feature-desc">Every HTML file is fully self-contained. Open in any browser — no build tools required.</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- MODULE CARDS                                                  -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<section id="modules">
+<div class="container">
+<div class="section-label">Learning Modules</div>
+<h2 class="section-title">Four Scenarios, One Complete Skill Set</h2>
+<p class="section-subtitle">
+        Each module is self-contained and can be read independently. Together they form a
+        progressive curriculum from event-driven basics to full observability.
+      </p>
+<div class="modules-grid">
+<!-- MODULE 1 -->
+<div class="module-card">
+<div class="card-header">
+<div class="card-icon m1">⚡</div>
+<div class="card-meta">
+<div class="card-number">Module 01</div>
+<div class="card-title">Event-Driven Ingestion Pipeline</div>
+</div>
+</div>
+<div class="card-body">
+<p class="card-description">
+              A file lands in S3 and the entire downstream chain fires automatically — no polling,
+              no cron, no manual triggers. The foundational serverless pattern for data lake
+              ingestion, audit trails, and file processing systems.
+            </p>
+<div class="flow-diagram m1">
+<span class="service">S3</span>
+<span class="arrow"> ──► </span>
+<span class="service">EventBridge</span>
+<span class="arrow"> ──► </span>
+<span class="service">Lambda</span>
+<span class="arrow"> ──► </span>
+<span class="service">DynamoDB</span>
+<span class="arrow"> + </span>
+<span class="service">SNS</span>
+</div>
+<div class="tag-list">
+<span class="tag m1">aws_s3_bucket</span>
+<span class="tag m1">aws_s3_bucket_notification</span>
+<span class="tag m1">aws_cloudwatch_event_rule</span>
+<span class="tag m1">aws_lambda_function</span>
+<span class="tag m1">aws_lambda_permission</span>
+<span class="tag m1">aws_dynamodb_table</span>
+<span class="tag m1">aws_sns_topic</span>
+</div>
+<div class="card-stats">
+<div class="stat"><div class="stat-value">825</div><div class="stat-label">Lines</div></div>
+<div class="stat"><div class="stat-value">19</div><div class="stat-label">Resources</div></div>
+<div class="stat"><div class="stat-value">13</div><div class="stat-label">Sections</div></div>
+</div>
+</div>
+<div class="card-footer">
+<a class="btn btn-m1" href="module1.html">
+<svg fill="none" height="16" stroke="currentColor" stroke-width="2.5" viewbox="0 0 24 24" width="16"><path d="M5 12h14M12 5l7 7-7 7"></path></svg>
+              Open Module 1
+            </a>
+</div>
+</div>
+<!-- MODULE 2 -->
+<div class="module-card">
+<div class="card-header">
+<div class="card-icon m2">🔀</div>
+<div class="card-meta">
+<div class="card-number">Module 02</div>
+<div class="card-title">Step Functions Orchestration</div>
+</div>
+</div>
+<div class="card-body">
+<p class="card-description">
+              Multi-step durable workflows with retry logic, error handling, and a full audit trail.
+              A dispatcher Lambda starts a Standard Workflow that orchestrates DynamoDB writes and
+              SNS notifications with exactly-once semantics.
+            </p>
+<div class="flow-diagram m2">
+<span class="service">Lambda</span>
+<span class="arrow"> ──► </span>
+<span class="service">Step Functions</span>
+<span class="arrow"> ──► </span>
+<span class="service">DynamoDB</span>
+<span class="arrow"> + </span>
+<span class="service">SNS</span>
+</div>
+<div class="tag-list">
+<span class="tag m2">aws_sfn_state_machine</span>
+<span class="tag m2">aws_lambda_function ×3</span>
+<span class="tag m2">aws_iam_role ×3</span>
+<span class="tag m2">aws_dynamodb_table</span>
+<span class="tag m2">logging_configuration</span>
+<span class="tag m2">ASL + jsonencode()</span>
+</div>
+<div class="card-stats">
+<div class="stat"><div class="stat-value">992</div><div class="stat-label">Lines</div></div>
+<div class="stat"><div class="stat-value">22</div><div class="stat-label">Resources</div></div>
+<div class="stat"><div class="stat-value">13</div><div class="stat-label">Sections</div></div>
+</div>
+</div>
+<div class="card-footer">
+<a class="btn btn-m2" href="module2.html">
+<svg fill="none" height="16" stroke="currentColor" stroke-width="2.5" viewbox="0 0 24 24" width="16"><path d="M5 12h14M12 5l7 7-7 7"></path></svg>
+              Open Module 2
+            </a>
+</div>
+</div>
+<!-- MODULE 3 -->
+<div class="module-card">
+<div class="card-header">
+<div class="card-icon m3">🕐</div>
+<div class="card-meta">
+<div class="card-number">Module 03</div>
+<div class="card-title">Scheduled Data Processing</div>
+</div>
+</div>
+<div class="card-body">
+<p class="card-description">
+              Cron-driven batch processing without servers. EventBridge fires on a schedule, Lambda
+              reads and aggregates S3 data files, writes job summaries to DynamoDB, and alerts on
+              success, failure, or a missed schedule.
+            </p>
+<div class="flow-diagram m3">
+<span class="service">EventBridge</span>
+<span class="arrow"> ──► </span>
+<span class="service">Lambda</span>
+<span class="arrow"> ──► </span>
+<span class="service">S3</span>
+<span class="arrow"> + </span>
+<span class="service">DynamoDB</span>
+<span class="arrow"> + </span>
+<span class="service">SNS</span>
+</div>
+<div class="tag-list">
+<span class="tag m3">schedule_expression</span>
+<span class="tag m3">cron(0 2 * * ? *)</span>
+<span class="tag m3">aws_s3_bucket_lifecycle_configuration</span>
+<span class="tag m3">missed-schedule alarm</span>
+<span class="tag m3">treat_missing_data</span>
+</div>
+<div class="card-stats">
+<div class="stat"><div class="stat-value">960</div><div class="stat-label">Lines</div></div>
+<div class="stat"><div class="stat-value">21</div><div class="stat-label">Resources</div></div>
+<div class="stat"><div class="stat-value">13</div><div class="stat-label">Sections</div></div>
+</div>
+</div>
+<div class="card-footer">
+<a class="btn btn-m3" href="module3.html">
+<svg fill="none" height="16" stroke="currentColor" stroke-width="2.5" viewbox="0 0 24 24" width="16"><path d="M5 12h14M12 5l7 7-7 7"></path></svg>
+              Open Module 3
+            </a>
+</div>
+</div>
+<!-- MODULE 4 -->
+<div class="module-card">
+<div class="card-header">
+<div class="card-icon m4">📊</div>
+<div class="card-meta">
+<div class="card-number">Module 04</div>
+<div class="card-title">Error Monitoring &amp; Alarms</div>
+</div>
+</div>
+<div class="card-body">
+<p class="card-description">
+              A complete, standalone observability layer. Log metric filters, per-function alarms,
+              composite alarms for noise reduction, a CloudWatch dashboard, and saved Logs Insights
+              queries — all wired to tiered SNS notification channels.
+            </p>
+<div class="flow-diagram m4">
+<span class="service">Logs + Metrics</span>
+<span class="arrow"> ──► </span>
+<span class="service">Alarms</span>
+<span class="arrow"> ──► </span>
+<span class="service">Composite</span>
+<span class="arrow"> ──► </span>
+<span class="service">SNS</span>
+</div>
+<div class="tag-list">
+<span class="tag m4">aws_cloudwatch_log_metric_filter</span>
+<span class="tag m4">aws_cloudwatch_composite_alarm</span>
+<span class="tag m4">aws_cloudwatch_dashboard</span>
+<span class="tag m4">extended_statistic p99</span>
+<span class="tag m4">for_each alarms</span>
+</div>
+<div class="card-stats">
+<div class="stat"><div class="stat-value">1,249</div><div class="stat-label">Lines</div></div>
+<div class="stat"><div class="stat-value">28</div><div class="stat-label">Resources</div></div>
+<div class="stat"><div class="stat-value">15</div><div class="stat-label">Sections</div></div>
+</div>
+</div>
+<div class="card-footer">
+<a class="btn btn-m4" href="module4.html">
+<svg fill="none" height="16" stroke="currentColor" stroke-width="2.5" viewbox="0 0 24 24" width="16"><path d="M5 12h14M12 5l7 7-7 7"></path></svg>
+              Open Module 4
+            </a>
+</div>
+</div>
+</div>
+</div>
+</section>
+<hr class="divider"/>
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- RESOURCES TABLE                                               -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<section class="resources" id="resources">
+<div class="container">
+<div class="section-label">Coverage</div>
+<h2 class="section-title">AWS Resources Reference</h2>
+<p class="section-subtitle">25 distinct Terraform resources across 90 total definitions, all aligned with AWS Provider v6.53.0.</p>
+<div class="resources-table-wrap">
+<table>
+<thead>
+<tr>
+<th>Terraform Resource</th>
+<th>Modules</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr><td><code class="resource-name">aws_s3_bucket</code></td><td><span class="module-dot dot-1">1</span><span class="module-dot dot-3">3</span></td><td>Input / data lake storage</td></tr>
+<tr><td><code class="resource-name">aws_s3_bucket_notification</code></td><td><span class="module-dot dot-1">1</span></td><td>Enable EventBridge event routing from S3</td></tr>
+<tr><td><code class="resource-name">aws_s3_bucket_lifecycle_configuration</code></td><td><span class="module-dot dot-3">3</span></td><td>Automated data tiering and expiration</td></tr>
+<tr><td><code class="resource-name">aws_cloudwatch_event_rule</code></td><td><span class="module-dot dot-1">1</span><span class="module-dot dot-3">3</span></td><td>EventBridge event pattern or schedule rule</td></tr>
+<tr><td><code class="resource-name">aws_cloudwatch_event_target</code></td><td><span class="module-dot dot-1">1</span><span class="module-dot dot-3">3</span></td><td>Route EventBridge events to Lambda</td></tr>
+<tr><td><code class="resource-name">aws_lambda_function</code></td><td><span class="module-dot dot-1">1</span><span class="module-dot dot-2">2</span><span class="module-dot dot-3">3</span></td><td>Serverless compute for all processing steps</td></tr>
+<tr><td><code class="resource-name">aws_lambda_permission</code></td><td><span class="module-dot dot-1">1</span><span class="module-dot dot-2">2</span><span class="module-dot dot-3">3</span></td><td>Resource-based policy for EventBridge/SFN invocation</td></tr>
+<tr><td><code class="resource-name">aws_sfn_state_machine</code></td><td><span class="module-dot dot-2">2</span></td><td>Durable multi-step workflow orchestration</td></tr>
+<tr><td><code class="resource-name">aws_dynamodb_table</code></td><td><span class="module-dot dot-1">1</span><span class="module-dot dot-2">2</span><span class="module-dot dot-3">3</span></td><td>Low-latency metadata and results storage</td></tr>
+<tr><td><code class="resource-name">aws_sns_topic</code></td><td><span class="module-dot dot-1">1</span><span class="module-dot dot-2">2</span><span class="module-dot dot-3">3</span><span class="module-dot dot-4">4</span></td><td>Fan-out notification channel</td></tr>
+<tr><td><code class="resource-name">aws_sns_topic_policy</code></td><td><span class="module-dot dot-1">1</span><span class="module-dot dot-2">2</span><span class="module-dot dot-3">3</span><span class="module-dot dot-4">4</span></td><td>Resource-based publish permissions</td></tr>
+<tr><td><code class="resource-name">aws_sns_topic_subscription</code></td><td><span class="module-dot dot-1">1</span><span class="module-dot dot-2">2</span><span class="module-dot dot-3">3</span><span class="module-dot dot-4">4</span></td><td>Email / SQS / HTTP subscribers</td></tr>
+<tr><td><code class="resource-name">aws_iam_role</code></td><td><span class="module-dot dot-1">1</span><span class="module-dot dot-2">2</span><span class="module-dot dot-3">3</span><span class="module-dot dot-4">4</span></td><td>Least-privilege execution roles</td></tr>
+<tr><td><code class="resource-name">aws_iam_policy</code></td><td><span class="module-dot dot-1">1</span><span class="module-dot dot-2">2</span><span class="module-dot dot-3">3</span><span class="module-dot dot-4">4</span></td><td>Scoped permission policies</td></tr>
+<tr><td><code class="resource-name">aws_iam_policy_document</code> (data)</td><td><span class="module-dot dot-1">1</span><span class="module-dot dot-2">2</span><span class="module-dot dot-3">3</span><span class="module-dot dot-4">4</span></td><td>Type-safe IAM policy authoring</td></tr>
+<tr><td><code class="resource-name">aws_cloudwatch_log_group</code></td><td><span class="module-dot dot-1">1</span><span class="module-dot dot-2">2</span><span class="module-dot dot-3">3</span><span class="module-dot dot-4">4</span></td><td>Managed log groups with retention policies</td></tr>
+<tr><td><code class="resource-name">aws_cloudwatch_log_metric_filter</code></td><td><span class="module-dot dot-4">4</span></td><td>Extract custom metrics from log output</td></tr>
+<tr><td><code class="resource-name">aws_cloudwatch_metric_alarm</code></td><td><span class="module-dot dot-1">1</span><span class="module-dot dot-2">2</span><span class="module-dot dot-3">3</span><span class="module-dot dot-4">4</span></td><td>Threshold-based alerting on service metrics</td></tr>
+<tr><td><code class="resource-name">aws_cloudwatch_composite_alarm</code></td><td><span class="module-dot dot-4">4</span></td><td>Boolean alarm aggregation for noise reduction</td></tr>
+<tr><td><code class="resource-name">aws_cloudwatch_dashboard</code></td><td><span class="module-dot dot-4">4</span></td><td>Single-pane-of-glass operational view</td></tr>
+<tr><td><code class="resource-name">aws_cloudwatch_query_definition</code></td><td><span class="module-dot dot-4">4</span></td><td>Saved Logs Insights queries</td></tr>
+</tbody>
+</table>
+</div>
+</div>
+</section>
+<hr class="divider"/>
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- PREREQUISITES                                                 -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<section class="prereqs" id="prereqs">
+<div class="container">
+<div class="section-label">Getting Started</div>
+<h2 class="section-title">Prerequisites</h2>
+<p class="section-subtitle">Everything you need to apply the Terraform code from these modules in your own AWS account.</p>
+<div class="prereq-grid">
+<div class="prereq-card">
+<h4>🔧 Terraform CLI</h4>
+<p>Version <code>&gt;= 1.5</code> required. Install via <a href="https://developer.hashicorp.com/terraform/install" style="color:var(--brand-primary)">HashiCorp's installer</a> or <code>brew install terraform</code> on macOS.</p>
+</div>
+<div class="prereq-card">
+<h4>☁️ AWS Provider</h4>
+<p>Version <code>~&gt; 6.0</code> (currently 6.53.0). Declared in <code>required_providers</code> — Terraform downloads it automatically on <code>terraform init</code>.</p>
+</div>
+<div class="prereq-card">
+<h4>🔑 AWS Credentials</h4>
+<p>Any valid method: environment variables (<code>AWS_ACCESS_KEY_ID</code>), <code>~/.aws/credentials</code> profile, or an IAM instance profile.</p>
+</div>
+<div class="prereq-card">
+<h4>🐍 Python 3.12</h4>
+<p>Required for the Lambda handler examples. Package each handler into a ZIP file before running <code>terraform apply</code>.</p>
+</div>
+</div>
+<pre class="code-block"><code># Minimal provider configuration used across all modules
+terraform {
+  required_version = "&gt;= 1.5"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~&gt; 6.0"
+    }
+  }
+}
+
+provider "aws" {
+  region = "us-east-1"
+
+  default_tags {
+    tags = {
+      Project     = "terraform-aws-learning"
+      ManagedBy   = "terraform"
+    }
+  }
+}</code></pre>
+</div>
+</section>
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- FOOTER                                                        -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<footer>
+<div class="footer-links">
+<a href="module1.html">Module 1 – Event-Driven Pipeline</a>
+<a href="module2.html">Module 2 – Step Functions</a>
+<a href="module3.html">Module 3 – Scheduled Processing</a>
+<a href="module4.html">Module 4 – Observability</a>
+<a href="https://registry.terraform.io/providers/hashicorp/aws/latest/docs" rel="noopener" target="_blank">AWS Provider Docs ↗</a>
+</div>
+<p>
+      Licensed under the
+      <a href="https://www.apache.org/licenses/LICENSE-2.0" rel="noopener" target="_blank">Apache License 2.0</a>
+       · 
+      All Terraform code validated against AWS Provider v6.53.0
+       · 
+      Built for engineers who learn by reading real code.
+    </p>
+</footer>
+</body>
+</html>
