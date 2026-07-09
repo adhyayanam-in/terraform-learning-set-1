@@ -1,0 +1,993 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Module 2 – API-Triggered Step Functions Orchestration</title>
+<style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0; padding: 2rem 3rem;
+      line-height: 1.7;
+      color: #1f2933;
+      background: #f9fafb;
+    }
+    .page-wrap { max-width: 960px; margin: 0 auto; background: #fff; padding: 2.5rem 3rem; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); }
+    h1 { font-size: 2rem; color: #111827; border-bottom: 3px solid #7c3aed; padding-bottom: 0.5rem; margin-bottom: 0.5rem; }
+    h2 { font-size: 1.4rem; color: #3b0764; margin-top: 2.5rem; border-left: 4px solid #7c3aed; padding-left: 0.75rem; }
+    h3 { font-size: 1.1rem; color: #1f2933; margin-top: 1.75rem; }
+    .subtitle { color: #4b5563; font-size: 1.05rem; margin-bottom: 2rem; }
+    code { background: #f5f3ff; padding: 0.15rem 0.45rem; border-radius: 4px; font-size: 0.9em; color: #3b0764; font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; }
+    pre {
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 1.25rem 1.5rem;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 0.875rem;
+      line-height: 1.6;
+      margin: 1rem 0 1.5rem;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    }
+    pre code { background: none; color: inherit; padding: 0; font-size: inherit; }
+    .note {
+      border-left: 4px solid #7c3aed;
+      background: #f5f3ff;
+      padding: 0.75rem 1rem;
+      margin: 1.25rem 0;
+      border-radius: 0 6px 6px 0;
+    }
+    .warning {
+      border-left: 4px solid #b91c1c;
+      background: #fef2f2;
+      padding: 0.75rem 1rem;
+      margin: 1.25rem 0;
+      border-radius: 0 6px 6px 0;
+    }
+    .arch-diagram {
+      background: #0f172a;
+      color: #a78bfa;
+      padding: 1.25rem 1.5rem;
+      border-radius: 6px;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 0.875rem;
+      overflow-x: auto;
+      margin: 1rem 0;
+    }
+    ul, ol { margin-left: 1.5rem; }
+    li { margin-bottom: 0.35rem; }
+    .badge {
+      display: inline-block;
+      background: #ede9fe;
+      color: #5b21b6;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.15rem 0.6rem;
+      border-radius: 999px;
+      margin-right: 0.4rem;
+      vertical-align: middle;
+    }
+    table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+    th { background: #3b0764; color: #fff; padding: 0.5rem 0.75rem; text-align: left; font-size: 0.875rem; }
+    td { padding: 0.5rem 0.75rem; border-bottom: 1px solid #e5e7eb; font-size: 0.875rem; }
+    tr:nth-child(even) td { background: #faf5ff; }
+    .toc { background: #f5f3ff; border-radius: 6px; padding: 1rem 1.5rem; margin-bottom: 2rem; }
+    .toc h4 { margin: 0 0 0.5rem; color: #3b0764; }
+    .toc ol { margin: 0; }
+    .toc li { margin-bottom: 0.2rem; }
+    .toc a { color: #7c3aed; text-decoration: none; }
+    .toc a:hover { text-decoration: underline; }
+    .module-nav { display: flex; gap: 1rem; margin-bottom: 2rem; flex-wrap: wrap; }
+    .module-nav span { background: #ede9fe; color: #5b21b6; padding: 0.3rem 0.8rem; border-radius: 999px; font-size: 0.8rem; font-weight: 600; }
+    .module-nav span.active { background: #5b21b6; color: #fff; }
+    .asl-note { background: #1e1b4b; color: #c7d2fe; border-radius: 6px; padding: 1rem 1.25rem; margin: 1rem 0; font-size: 0.85rem; }
+    .asl-note strong { color: #a5b4fc; }
+  </style>
+</head>
+<body>
+<div class="page-wrap">
+<div class="module-nav">
+<span>Module 1 – Event-Driven Pipeline</span>
+<span class="active">Module 2 – Step Functions</span>
+<span>Module 3 – Scheduled Processing</span>
+<span>Module 4 – Observability</span>
+</div>
+<h1>Module 2 – API-Triggered Step Functions Orchestration</h1>
+<p class="subtitle">
+<span class="badge">Lambda</span>
+<span class="badge">Step Functions</span>
+<span class="badge">DynamoDB</span>
+<span class="badge">SNS</span>
+<span class="badge">CloudWatch</span>
+<span class="badge">IAM</span>
+</p>
+<p>
+    This module builds a multi-step orchestration workflow using AWS Step Functions. An external
+    caller (API Gateway, another Lambda, or a CLI invocation) triggers a <em>dispatcher Lambda</em>
+    that starts a Step Functions Standard Workflow. The state machine orchestrates two downstream
+    steps: persisting a record to DynamoDB and sending an SNS notification. CloudWatch Logs captures
+    execution history for both Lambda and the state machine. This pattern is the foundation for
+    order processing, approval workflows, data transformation pipelines, and any scenario requiring
+    durable, auditable multi-step execution.
+  </p>
+<div class="toc">
+<h4>Contents</h4>
+<ol>
+<li><a href="#arch">Architecture Overview</a></li>
+<li><a href="#prereqs">Prerequisites</a></li>
+<li><a href="#iam">IAM Roles &amp; Policies</a></li>
+<li><a href="#dynamodb">DynamoDB Table</a></li>
+<li><a href="#sns">SNS Topic</a></li>
+<li><a href="#worker-lambdas">Worker Lambda Functions</a></li>
+<li><a href="#sfn">Step Functions State Machine</a></li>
+<li><a href="#dispatcher">Dispatcher Lambda</a></li>
+<li><a href="#cloudwatch">CloudWatch Logs for State Machine</a></li>
+<li><a href="#wiring">Connecting the Workflow</a></li>
+<li><a href="#deploy">Deploying &amp; Testing</a></li>
+<li><a href="#cleanup">Cleanup</a></li>
+<li><a href="#pitfalls">Common Pitfalls</a></li>
+</ol>
+</div>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="arch">Architecture Overview</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<p>
+    The dispatcher Lambda is the entry point — it validates the incoming request and calls
+    <code>StartExecution</code> on the state machine, passing the request payload as input.
+    Step Functions then drives the workflow: first invoking a Lambda that writes to DynamoDB,
+    then invoking a Lambda that publishes to SNS. Each state transition is logged to CloudWatch.
+    If any step fails, Step Functions retries according to the configured retry policy and can
+    route to a <code>Catch</code> handler for compensating actions.
+  </p>
+<div class="arch-diagram">
+<pre>
+┌──────────────────────────────────────────────────────────────────────────┐
+│                         AWS Account / us-east-1                          │
+│                                                                          │
+│  External Caller                                                         │
+│  (API GW / CLI / EventBridge)                                            │
+│         │                                                                │
+│         │ invoke                                                         │
+│         ▼                                                                │
+│  ┌─────────────────────┐   StartExecution   ┌──────────────────────┐    │
+│  │  Dispatcher Lambda  │ ──────────────────▶│  Step Functions      │    │
+│  │  (start_workflow)   │                    │  State Machine       │    │
+│  └─────────────────────┘                    │  (Standard Workflow) │    │
+│                                             └──────────┬───────────┘    │
+│                                                        │                │
+│                              ┌─────────────────────────┤                │
+│                              │                         │                │
+│                    State 1   ▼               State 2   ▼                │
+│              ┌───────────────────────┐  ┌───────────────────────┐       │
+│              │  Lambda: write_record │  │  Lambda: send_notify  │       │
+│              │  (DynamoDB PutItem)   │  │  (SNS Publish)        │       │
+│              └───────────┬───────────┘  └───────────┬───────────┘       │
+│                          │                          │                   │
+│                          ▼                          ▼                   │
+│                  ┌───────────────┐         ┌────────────────┐           │
+│                  │  DynamoDB     │         │  SNS Topic     │           │
+│                  │  (orders)     │         │  (alerts)      │           │
+│                  └───────────────┘         └────────────────┘           │
+│                                                                          │
+│  CloudWatch Logs:                                                        │
+│    /aws/lambda/start-workflow                                            │
+│    /aws/lambda/write-record                                              │
+│    /aws/lambda/send-notify                                               │
+│    /aws/states/order-processing-workflow                                 │
+└──────────────────────────────────────────────────────────────────────────┘
+</pre>
+</div>
+<ul>
+<li><strong>Dispatcher Lambda:</strong> Validates input and calls <code>sfn:StartExecution</code>. Returns the execution ARN to the caller for status polling.</li>
+<li><strong>Step Functions State Machine:</strong> Durable orchestrator — manages state, retries, error handling, and execution history. Uses Standard Workflow for exactly-once semantics and full audit trail.</li>
+<li><strong>write_record Lambda:</strong> Receives the workflow input and writes a structured record to DynamoDB.</li>
+<li><strong>send_notify Lambda:</strong> Receives the DynamoDB write result and publishes a formatted SNS notification.</li>
+<li><strong>DynamoDB Table:</strong> Durable store for order/workflow records.</li>
+<li><strong>SNS Topic:</strong> Fan-out notification channel for downstream consumers.</li>
+<li><strong>CloudWatch Logs:</strong> Captures Lambda logs and Step Functions execution events (state transitions, errors, input/output).</li>
+</ul>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="prereqs">Prerequisites</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<ul>
+<li>Terraform CLI ≥ 1.5 and AWS provider ~&gt; 6.0</li>
+<li>AWS credentials with permissions for Lambda, Step Functions, DynamoDB, SNS, IAM, and CloudWatch Logs</li>
+<li>Three Lambda deployment ZIPs: <code>dispatcher.zip</code>, <code>write_record.zip</code>, <code>send_notify.zip</code></li>
+</ul>
+<pre><code># versions.tf
+terraform {
+  required_version = "&gt;= 1.5"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~&gt; 6.0"
+    }
+  }
+}
+
+provider "aws" {
+  region = var.aws_region
+
+  default_tags {
+    tags = {
+      Project     = "order-processing"
+      Environment = var.environment
+      ManagedBy   = "terraform"
+    }
+  }
+}
+
+variable "aws_region"  { default = "us-east-1" }
+variable "environment" { default = "dev" }
+
+data "aws_caller_identity" "current" {}
+data "aws_region" "current" {}
+</code></pre>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="iam">IAM Roles &amp; Policies</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<p>
+    This module requires three IAM roles: one for the dispatcher Lambda (needs
+    <code>sfn:StartExecution</code>), one for the worker Lambdas (needs DynamoDB and SNS access),
+    and one for the Step Functions state machine itself (needs <code>lambda:InvokeFunction</code>
+    on the worker Lambdas and <code>logs:*</code> for CloudWatch logging).
+  </p>
+<pre><code># iam.tf
+
+# ── Shared Lambda trust policy ─────────────────────────────────────────
+data "aws_iam_policy_document" "lambda_assume_role" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["lambda.amazonaws.com"]
+    }
+  }
+}
+
+# ── Dispatcher Lambda role ─────────────────────────────────────────────
+# Needs: CloudWatch Logs + sfn:StartExecution
+resource "aws_iam_role" "dispatcher_lambda" {
+  name               = "order-proc-dispatcher-lambda-${var.environment}"
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
+}
+
+data "aws_iam_policy_document" "dispatcher_permissions" {
+  statement {
+    sid    = "CloudWatchLogs"
+    effect = "Allow"
+    actions = [
+      "logs:CreateLogGroup",
+      "logs:CreateLogStream",
+      "logs:PutLogEvents"
+    ]
+    resources = ["arn:aws:logs:*:*:*"]
+  }
+
+  statement {
+    sid     = "StartSFNExecution"
+    effect  = "Allow"
+    actions = ["states:StartExecution"]
+    # Reference the state machine ARN — created later, but Terraform resolves
+    # the dependency graph correctly via this reference.
+    resources = [aws_sfn_state_machine.order_processing.arn]
+  }
+}
+
+resource "aws_iam_policy" "dispatcher_permissions" {
+  name   = "order-proc-dispatcher-policy-${var.environment}"
+  policy = data.aws_iam_policy_document.dispatcher_permissions.json
+}
+
+resource "aws_iam_role_policy_attachment" "dispatcher_permissions" {
+  role       = aws_iam_role.dispatcher_lambda.name
+  policy_arn = aws_iam_policy.dispatcher_permissions.arn
+}
+
+# ── Worker Lambda role ─────────────────────────────────────────────────
+# Shared by write_record and send_notify Lambdas.
+# Needs: CloudWatch Logs + DynamoDB PutItem + SNS Publish
+resource "aws_iam_role" "worker_lambda" {
+  name               = "order-proc-worker-lambda-${var.environment}"
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
+}
+
+data "aws_iam_policy_document" "worker_permissions" {
+  statement {
+    sid    = "CloudWatchLogs"
+    effect = "Allow"
+    actions = [
+      "logs:CreateLogGroup",
+      "logs:CreateLogStream",
+      "logs:PutLogEvents"
+    ]
+    resources = ["arn:aws:logs:*:*:*"]
+  }
+
+  statement {
+    sid    = "DynamoDBWrite"
+    effect = "Allow"
+    actions = [
+      "dynamodb:PutItem",
+      "dynamodb:UpdateItem",
+      "dynamodb:GetItem"
+    ]
+    resources = [aws_dynamodb_table.orders.arn]
+  }
+
+  statement {
+    sid     = "SNSPublish"
+    effect  = "Allow"
+    actions = ["sns:Publish"]
+    resources = [aws_sns_topic.order_events.arn]
+  }
+}
+
+resource "aws_iam_policy" "worker_permissions" {
+  name   = "order-proc-worker-policy-${var.environment}"
+  policy = data.aws_iam_policy_document.worker_permissions.json
+}
+
+resource "aws_iam_role_policy_attachment" "worker_permissions" {
+  role       = aws_iam_role.worker_lambda.name
+  policy_arn = aws_iam_policy.worker_permissions.arn
+}
+
+# ── Step Functions execution role ──────────────────────────────────────
+# Needs: lambda:InvokeFunction on worker Lambdas + CloudWatch Logs
+data "aws_iam_policy_document" "sfn_assume_role" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["states.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "sfn_exec" {
+  name               = "order-proc-sfn-exec-${var.environment}"
+  assume_role_policy = data.aws_iam_policy_document.sfn_assume_role.json
+}
+
+data "aws_iam_policy_document" "sfn_permissions" {
+  # Invoke the two worker Lambda functions.
+  statement {
+    sid    = "InvokeLambdas"
+    effect = "Allow"
+    actions = ["lambda:InvokeFunction"]
+    resources = [
+      aws_lambda_function.write_record.arn,
+      aws_lambda_function.send_notify.arn,
+      # Include $LATEST and versioned ARNs for robustness.
+      "${aws_lambda_function.write_record.arn}:*",
+      "${aws_lambda_function.send_notify.arn}:*"
+    ]
+  }
+
+  # Write execution logs to CloudWatch Logs.
+  statement {
+    sid    = "CloudWatchLogs"
+    effect = "Allow"
+    actions = [
+      "logs:CreateLogDelivery",
+      "logs:GetLogDelivery",
+      "logs:UpdateLogDelivery",
+      "logs:DeleteLogDelivery",
+      "logs:ListLogDeliveries",
+      "logs:PutResourcePolicy",
+      "logs:DescribeResourcePolicies",
+      "logs:DescribeLogGroups"
+    ]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_policy" "sfn_permissions" {
+  name   = "order-proc-sfn-policy-${var.environment}"
+  policy = data.aws_iam_policy_document.sfn_permissions.json
+}
+
+resource "aws_iam_role_policy_attachment" "sfn_permissions" {
+  role       = aws_iam_role.sfn_exec.name
+  policy_arn = aws_iam_policy.sfn_permissions.arn
+}
+</code></pre>
+<div class="warning">
+<p><strong>Step Functions trust policy:</strong> The principal must be <code>states.amazonaws.com</code>, not <code>lambda.amazonaws.com</code>. Using the wrong service principal is a common mistake that produces a cryptic <em>AccessDenied</em> when the state machine tries to invoke Lambda.</p>
+</div>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="dynamodb">DynamoDB Table</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<p>
+    The orders table stores one item per workflow execution. The partition key is the
+    <code>order_id</code> (a UUID generated by the dispatcher). A sort key of
+    <code>created_at</code> (ISO-8601 timestamp) enables time-range queries per order.
+  </p>
+<pre><code># dynamodb.tf
+
+resource "aws_dynamodb_table" "orders" {
+  name         = "order-proc-orders-${var.environment}"
+  billing_mode = "PAY_PER_REQUEST"
+
+  hash_key  = "order_id"    # partition key
+  range_key = "created_at"  # sort key — enables time-range queries
+
+  # Only declare attributes used in key schema.
+  attribute {
+    name = "order_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "created_at"
+    type = "S"
+  }
+
+  # TTL: automatically expire completed orders after 30 days.
+  ttl {
+    attribute_name = "expires_at"
+    enabled        = true
+  }
+
+  point_in_time_recovery {
+    enabled = true
+  }
+}
+</code></pre>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="sns">SNS Topic</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<pre><code># sns.tf
+
+resource "aws_sns_topic" "order_events" {
+  name         = "order-proc-events-${var.environment}"
+  display_name = "Order Processing Events"
+  kms_master_key_id = "alias/aws/sns"
+}
+
+# Allow the worker Lambda role to publish.
+data "aws_iam_policy_document" "order_events_policy" {
+  statement {
+    sid     = "AllowWorkerLambdaPublish"
+    effect  = "Allow"
+    actions = ["SNS:Publish"]
+    principals {
+      type        = "AWS"
+      identifiers = [aws_iam_role.worker_lambda.arn]
+    }
+    resources = [aws_sns_topic.order_events.arn]
+  }
+}
+
+resource "aws_sns_topic_policy" "order_events" {
+  arn    = aws_sns_topic.order_events.arn
+  policy = data.aws_iam_policy_document.order_events_policy.json
+}
+</code></pre>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="worker-lambdas">Worker Lambda Functions</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<p>
+    The two worker Lambdas are invoked synchronously by Step Functions (using the
+    <code>Task</code> state type with a Lambda ARN as the <code>Resource</code>). Each function
+    receives the current state machine input as its event payload and returns a result that becomes
+    the input for the next state.
+  </p>
+<h3>write_record handler (<code>write_record/handler.py</code>)</h3>
+<pre><code>"""
+write_record/handler.py
+Receives the workflow input, writes an order record to DynamoDB,
+and returns the record for the next state.
+"""
+import json
+import os
+import boto3
+from datetime import datetime, timezone
+
+dynamodb = boto3.resource("dynamodb")
+TABLE_NAME = os.environ["DYNAMODB_TABLE"]
+
+def handler(event, context):
+    order_id   = event["order_id"]
+    customer   = event.get("customer", {})
+    items      = event.get("items", [])
+    created_at = datetime.now(timezone.utc).isoformat()
+
+    record = {
+        "order_id":   order_id,
+        "created_at": created_at,
+        "customer":   customer,
+        "items":      items,
+        "status":     "PROCESSING",
+        "total":      sum(i.get("price", 0) * i.get("qty", 1) for i in items),
+    }
+
+    table = dynamodb.Table(TABLE_NAME)
+    table.put_item(Item=record)
+    print(f"[INFO] Wrote order {order_id} to DynamoDB")
+
+    # Return value becomes the input to the next Step Functions state.
+    return record
+</code></pre>
+<h3>send_notify handler (<code>send_notify/handler.py</code>)</h3>
+<pre><code>"""
+send_notify/handler.py
+Receives the DynamoDB record from the previous state and publishes
+an SNS notification.
+"""
+import json
+import os
+import boto3
+
+sns = boto3.client("sns")
+TOPIC_ARN = os.environ["SNS_TOPIC_ARN"]
+
+def handler(event, context):
+    order_id = event["order_id"]
+    total    = event.get("total", 0)
+    status   = event.get("status", "UNKNOWN")
+
+    sns.publish(
+        TopicArn=TOPIC_ARN,
+        Subject=f"Order {order_id} — {status}",
+        Message=json.dumps({
+            "order_id": order_id,
+            "status":   status,
+            "total":    total,
+            "message":  f"Order {order_id} has been recorded successfully.",
+        }, indent=2),
+        MessageAttributes={
+            "order_id": {"DataType": "String", "StringValue": order_id},
+            "status":   {"DataType": "String", "StringValue": status},
+        }
+    )
+    print(f"[INFO] Published SNS notification for order {order_id}")
+    return {"order_id": order_id, "notification_sent": True}
+</code></pre>
+<h3>Terraform resources for worker Lambdas</h3>
+<pre><code># lambda_workers.tf
+
+# ── write_record Lambda ────────────────────────────────────────────────
+resource "aws_lambda_function" "write_record" {
+  function_name    = "order-proc-write-record-${var.environment}"
+  description      = "Step 1: Write order record to DynamoDB"
+  filename         = "${path.module}/write_record.zip"
+  source_code_hash = filebase64sha256("${path.module}/write_record.zip")
+  runtime          = "python3.12"
+  handler          = "handler.handler"
+  role             = aws_iam_role.worker_lambda.arn
+  timeout          = 30
+  memory_size      = 256
+
+  environment {
+    variables = {
+      DYNAMODB_TABLE = aws_dynamodb_table.orders.name
+    }
+  }
+
+  depends_on = [
+    aws_cloudwatch_log_group.write_record_lambda,
+    aws_iam_role_policy_attachment.worker_permissions
+  ]
+}
+
+resource "aws_cloudwatch_log_group" "write_record_lambda" {
+  name              = "/aws/lambda/order-proc-write-record-${var.environment}"
+  retention_in_days = 30
+}
+
+# ── send_notify Lambda ─────────────────────────────────────────────────
+resource "aws_lambda_function" "send_notify" {
+  function_name    = "order-proc-send-notify-${var.environment}"
+  description      = "Step 2: Publish SNS notification for completed order"
+  filename         = "${path.module}/send_notify.zip"
+  source_code_hash = filebase64sha256("${path.module}/send_notify.zip")
+  runtime          = "python3.12"
+  handler          = "handler.handler"
+  role             = aws_iam_role.worker_lambda.arn
+  timeout          = 30
+  memory_size      = 128
+
+  environment {
+    variables = {
+      SNS_TOPIC_ARN = aws_sns_topic.order_events.arn
+    }
+  }
+
+  depends_on = [
+    aws_cloudwatch_log_group.send_notify_lambda,
+    aws_iam_role_policy_attachment.worker_permissions
+  ]
+}
+
+resource "aws_cloudwatch_log_group" "send_notify_lambda" {
+  name              = "/aws/lambda/order-proc-send-notify-${var.environment}"
+  retention_in_days = 30
+}
+</code></pre>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="sfn">Step Functions State Machine</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<p>
+    The state machine is defined using Amazon States Language (ASL) — a JSON-based DSL. The
+    <code>definition</code> argument in <code>aws_sfn_state_machine</code> accepts a JSON string.
+    Using Terraform's <code>jsonencode()</code> function keeps the definition readable in HCL and
+    avoids escaping issues. The workflow has two sequential <code>Task</code> states, each invoking
+    a Lambda function, with retry and catch blocks for production resilience.
+  </p>
+<div class="asl-note">
+<strong>Amazon States Language key concepts:</strong>
+<ul style="margin: 0.5rem 0 0 1.25rem;">
+<li><strong>Task state:</strong> Invokes a resource (Lambda, DynamoDB API, etc.) and waits for a result.</li>
+<li><strong>Resource ARN:</strong> For synchronous Lambda invocation, use the Lambda function ARN directly.</li>
+<li><strong>ResultPath:</strong> Controls where the task output is merged into the state input (<code>$</code> = replace entire input, <code>$.result</code> = add as a field).</li>
+<li><strong>Retry:</strong> Automatic retry with exponential backoff on specified error types.</li>
+<li><strong>Catch:</strong> Routes to a fallback state on unrecoverable errors.</li>
+</ul>
+</div>
+<pre><code># sfn.tf
+
+# CloudWatch log group for Step Functions execution logs.
+resource "aws_cloudwatch_log_group" "sfn" {
+  name              = "/aws/states/order-proc-workflow-${var.environment}"
+  retention_in_days = 30
+}
+
+resource "aws_sfn_state_machine" "order_processing" {
+  name     = "order-proc-workflow-${var.environment}"
+  role_arn = aws_iam_role.sfn_exec.arn
+  type     = "STANDARD"   # STANDARD = exactly-once, full audit trail (up to 1 year)
+                           # EXPRESS  = at-least-once, high throughput, 5-min max
+
+  # The state machine definition in Amazon States Language.
+  # jsonencode() produces valid JSON from HCL maps — no manual escaping needed.
+  definition = jsonencode({
+    Comment = "Order processing workflow: write to DynamoDB then notify via SNS"
+    StartAt = "WriteOrderRecord"
+
+    States = {
+      # ── State 1: Write to DynamoDB ──────────────────────────────────
+      WriteOrderRecord = {
+        Type     = "Task"
+        # Synchronous Lambda invocation — SFN waits for the function to return.
+        Resource = aws_lambda_function.write_record.arn
+        Comment  = "Persist the order record to DynamoDB"
+
+        # Retry on transient Lambda and service errors.
+        Retry = [
+          {
+            ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException",
+                               "Lambda.SdkClientException", "Lambda.TooManyRequestsException"]
+            IntervalSeconds = 2
+            MaxAttempts     = 3
+            BackoffRate     = 2.0
+          }
+        ]
+
+        # On unrecoverable error, route to the failure handler.
+        Catch = [
+          {
+            ErrorEquals = ["States.ALL"]
+            Next        = "HandleFailure"
+            ResultPath  = "$.error"
+          }
+        ]
+
+        # Pass the entire output of this state as input to the next state.
+        ResultPath = "$"
+        Next       = "SendOrderNotification"
+      }
+
+      # ── State 2: Publish SNS notification ───────────────────────────
+      SendOrderNotification = {
+        Type     = "Task"
+        Resource = aws_lambda_function.send_notify.arn
+        Comment  = "Notify downstream systems via SNS"
+
+        Retry = [
+          {
+            ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException",
+                               "Lambda.SdkClientException", "Lambda.TooManyRequestsException"]
+            IntervalSeconds = 2
+            MaxAttempts     = 3
+            BackoffRate     = 2.0
+          }
+        ]
+
+        Catch = [
+          {
+            ErrorEquals = ["States.ALL"]
+            Next        = "HandleFailure"
+            ResultPath  = "$.error"
+          }
+        ]
+
+        ResultPath = "$"
+        End        = true   # Terminal state — workflow succeeds here
+      }
+
+      # ── Failure handler ──────────────────────────────────────────────
+      # In production, this could invoke a compensating Lambda or send an alert.
+      HandleFailure = {
+        Type  = "Fail"
+        Error = "OrderProcessingFailed"
+        Cause = "An unrecoverable error occurred during order processing"
+      }
+    }
+  })
+
+  # Enable CloudWatch logging for execution events.
+  logging_configuration {
+    # The log destination must include ":*" suffix for Step Functions.
+    log_destination        = "${aws_cloudwatch_log_group.sfn.arn}:*"
+    include_execution_data = true   # logs input/output at each state — disable in prod if sensitive
+    level                  = "ERROR"  # ALL | ERROR | FATAL | OFF
+  }
+
+  depends_on = [
+    aws_iam_role_policy_attachment.sfn_permissions,
+    aws_cloudwatch_log_group.sfn
+  ]
+}
+</code></pre>
+<p>
+<strong>Key arguments:</strong> <code>type</code> (<code>STANDARD</code> vs <code>EXPRESS</code>),
+    <code>definition</code> (ASL JSON string), <code>logging_configuration</code> block with
+    <code>log_destination</code> (must end in <code>:*</code>), <code>include_execution_data</code>,
+    and <code>level</code>.
+  </p>
+<div class="note">
+<p><strong>STANDARD vs EXPRESS:</strong> Use <code>STANDARD</code> when you need exactly-once execution semantics, executions longer than 5 minutes, or a full audit trail queryable via the console and API. Use <code>EXPRESS</code> for high-throughput, short-duration workflows (IoT, streaming) where at-least-once is acceptable.</p>
+</div>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="dispatcher">Dispatcher Lambda</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<p>
+    The dispatcher Lambda is the public-facing entry point. It validates the incoming payload,
+    generates a unique <code>order_id</code>, and starts a Step Functions execution. It returns
+    the execution ARN so the caller can poll for status.
+  </p>
+<h3>Dispatcher handler (<code>dispatcher/handler.py</code>)</h3>
+<pre><code>"""
+dispatcher/handler.py
+Entry point for the order processing workflow.
+Validates input, generates an order_id, and starts a Step Functions execution.
+"""
+import json
+import os
+import uuid
+import boto3
+
+sfn = boto3.client("stepfunctions")
+STATE_MACHINE_ARN = os.environ["STATE_MACHINE_ARN"]
+
+def handler(event, context):
+    # Support both direct invocation and API Gateway proxy integration.
+    if isinstance(event.get("body"), str):
+        body = json.loads(event["body"])
+    else:
+        body = event
+
+    # Generate a unique order ID for this execution.
+    order_id = str(uuid.uuid4())
+    body["order_id"] = order_id
+
+    # Start the Step Functions execution.
+    # The execution name must be unique within the state machine.
+    response = sfn.start_execution(
+        stateMachineArn=STATE_MACHINE_ARN,
+        name=f"order-{order_id}",
+        input=json.dumps(body),
+    )
+
+    print(f"[INFO] Started execution {response['executionArn']} for order {order_id}")
+
+    return {
+        "statusCode": 202,
+        "body": json.dumps({
+            "order_id":     order_id,
+            "execution_arn": response["executionArn"],
+            "status":       "ACCEPTED",
+        })
+    }
+</code></pre>
+<h3>Terraform resource</h3>
+<pre><code># lambda_dispatcher.tf
+
+resource "aws_lambda_function" "dispatcher" {
+  function_name    = "order-proc-dispatcher-${var.environment}"
+  description      = "Validates order input and starts the Step Functions workflow"
+  filename         = "${path.module}/dispatcher.zip"
+  source_code_hash = filebase64sha256("${path.module}/dispatcher.zip")
+  runtime          = "python3.12"
+  handler          = "handler.handler"
+  role             = aws_iam_role.dispatcher_lambda.arn
+  timeout          = 15
+  memory_size      = 128
+
+  environment {
+    variables = {
+      STATE_MACHINE_ARN = aws_sfn_state_machine.order_processing.arn
+    }
+  }
+
+  depends_on = [
+    aws_cloudwatch_log_group.dispatcher_lambda,
+    aws_iam_role_policy_attachment.dispatcher_permissions
+  ]
+}
+
+resource "aws_cloudwatch_log_group" "dispatcher_lambda" {
+  name              = "/aws/lambda/order-proc-dispatcher-${var.environment}"
+  retention_in_days = 30
+}
+</code></pre>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="cloudwatch">CloudWatch Logs for State Machine</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<p>
+    Step Functions writes execution events (state entered, state exited, execution succeeded/failed)
+    to the CloudWatch log group configured in <code>logging_configuration</code>. With
+    <code>include_execution_data = true</code>, the full input and output of each state is logged —
+    invaluable for debugging but potentially sensitive in production.
+  </p>
+<pre><code># cloudwatch.tf (additions for Step Functions)
+
+# Alarm: alert when any Step Functions execution fails.
+resource "aws_cloudwatch_metric_alarm" "sfn_execution_failures" {
+  alarm_name          = "order-proc-sfn-failures-${var.environment}"
+  alarm_description   = "One or more Step Functions executions have failed"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  metric_name         = "ExecutionsFailed"
+  namespace           = "AWS/States"
+  period              = 60
+  statistic           = "Sum"
+  threshold           = 1
+
+  dimensions = {
+    StateMachineArn = aws_sfn_state_machine.order_processing.arn
+  }
+
+  alarm_actions      = [aws_sns_topic.order_events.arn]
+  treat_missing_data = "notBreaching"
+}
+
+# Alarm: alert on throttled executions (too many concurrent executions).
+resource "aws_cloudwatch_metric_alarm" "sfn_throttles" {
+  alarm_name          = "order-proc-sfn-throttles-${var.environment}"
+  alarm_description   = "Step Functions executions are being throttled"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "ExecutionThrottled"
+  namespace           = "AWS/States"
+  period              = 60
+  statistic           = "Sum"
+  threshold           = 0
+
+  dimensions = {
+    StateMachineArn = aws_sfn_state_machine.order_processing.arn
+  }
+
+  alarm_actions      = [aws_sns_topic.order_events.arn]
+  treat_missing_data = "notBreaching"
+}
+</code></pre>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="wiring">Connecting the Workflow</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<p>
+    The dependency chain flows through Terraform attribute references. Here is the complete
+    resource dependency graph for this module:
+  </p>
+<table>
+<thead>
+<tr><th>Resource</th><th>Depends On</th><th>Via</th></tr>
+</thead>
+<tbody>
+<tr><td><code>aws_sfn_state_machine</code></td><td><code>aws_lambda_function.write_record</code>, <code>aws_lambda_function.send_notify</code>, <code>aws_iam_role.sfn_exec</code></td><td><code>definition</code> ARN refs, <code>role_arn</code></td></tr>
+<tr><td><code>aws_lambda_function.dispatcher</code></td><td><code>aws_sfn_state_machine</code>, <code>aws_iam_role.dispatcher_lambda</code></td><td>env var <code>STATE_MACHINE_ARN</code>, <code>role</code></td></tr>
+<tr><td><code>aws_lambda_function.write_record</code></td><td><code>aws_dynamodb_table.orders</code>, <code>aws_iam_role.worker_lambda</code></td><td>env var <code>DYNAMODB_TABLE</code>, <code>role</code></td></tr>
+<tr><td><code>aws_lambda_function.send_notify</code></td><td><code>aws_sns_topic.order_events</code>, <code>aws_iam_role.worker_lambda</code></td><td>env var <code>SNS_TOPIC_ARN</code>, <code>role</code></td></tr>
+<tr><td><code>aws_iam_policy.dispatcher_permissions</code></td><td><code>aws_sfn_state_machine</code></td><td><code>resources = [sfn.arn]</code></td></tr>
+<tr><td><code>aws_iam_policy.sfn_permissions</code></td><td><code>aws_lambda_function.write_record</code>, <code>aws_lambda_function.send_notify</code></td><td><code>resources = [lambda.arn]</code></td></tr>
+</tbody>
+</table>
+<pre><code># outputs.tf
+
+output "dispatcher_lambda_name" {
+  value = aws_lambda_function.dispatcher.function_name
+}
+
+output "state_machine_arn" {
+  value = aws_sfn_state_machine.order_processing.arn
+}
+
+output "orders_table_name" {
+  value = aws_dynamodb_table.orders.name
+}
+</code></pre>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="deploy">Deploying &amp; Testing</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h3>Package and deploy</h3>
+<pre><code># Package each Lambda handler separately
+for dir in dispatcher write_record send_notify; do
+  cd ${dir} &amp;&amp; zip ../${dir}.zip handler.py &amp;&amp; cd ..
+done
+
+terraform init
+terraform plan -out=tfplan
+terraform apply tfplan
+</code></pre>
+<h3>Invoke the dispatcher Lambda directly</h3>
+<pre><code>FUNCTION=$(terraform output -raw dispatcher_lambda_name)
+
+aws lambda invoke \
+  --function-name ${FUNCTION} \
+  --payload '{"customer":{"name":"Alice","email":"alice@example.com"},"items":[{"sku":"WIDGET-1","price":29.99,"qty":2}]}' \
+  --cli-binary-format raw-in-base64-out \
+  response.json
+
+cat response.json
+# Expected: {"statusCode": 202, "body": "{\"order_id\": \"...\", \"execution_arn\": \"...\", \"status\": \"ACCEPTED\"}"}
+</code></pre>
+<h3>Monitor the execution</h3>
+<pre><code">SFN_ARN=$(terraform output -raw state_machine_arn)
+
+# List recent executions
+aws stepfunctions list-executions \
+  --state-machine-arn ${SFN_ARN} \
+  --query "executions[0:5].{name:name,status:status,startDate:startDate}"
+
+# Describe a specific execution (replace with actual execution ARN from response.json)
+EXEC_ARN="arn:aws:states:us-east-1:123456789012:execution:order-proc-workflow-dev:order-..."
+aws stepfunctions describe-execution --execution-arn ${EXEC_ARN}
+
+# Get execution history (state transitions, inputs, outputs)
+aws stepfunctions get-execution-history \
+  --execution-arn ${EXEC_ARN} \
+  --query "events[*].{type:type,timestamp:timestamp}"
+</code"></pre>
+<h3>Verify DynamoDB record</h3>
+<pre><code">TABLE=$(terraform output -raw orders_table_name)
+aws dynamodb scan --table-name ${TABLE} \
+  --query "Items[0]" \
+  --output json
+</code"></pre>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="cleanup">Cleanup</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<pre><code>terraform destroy
+</code></pre>
+<ul>
+<li>Step Functions executions are retained in history even after the state machine is deleted — they are not billed after deletion.</li>
+<li>DynamoDB tables with data will be deleted immediately by <code>terraform destroy</code> unless <code>deletion_protection_enabled = true</code> is set.</li>
+<li>CloudWatch log groups persist after Lambda/SFN deletion unless explicitly destroyed.</li>
+</ul>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="pitfalls">Common Pitfalls</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="warning">
+<p><strong>Circular dependency between SFN policy and state machine:</strong> The SFN execution role policy references Lambda ARNs, and the state machine definition also references Lambda ARNs. Terraform resolves this correctly via the dependency graph — but if you try to reference the state machine ARN in the SFN policy (e.g., for self-referential executions), you will create a circular dependency. Use <code>depends_on</code> explicitly to break cycles.</p>
+</div>
+<div class="warning">
+<p><strong>Log destination format:</strong> The <code>log_destination</code> in <code>logging_configuration</code> must end with <code>:*</code> (e.g., <code>arn:aws:logs:...:log-group:/aws/states/...:*</code>). Omitting <code>:*</code> causes a silent failure where no logs are written.</p>
+</div>
+<ul>
+<li><strong>Execution name uniqueness:</strong> Each <code>StartExecution</code> call requires a unique <code>name</code> within the state machine. Using a UUID (as shown) is the safest approach.</li>
+<li><strong>ResultPath semantics:</strong> Setting <code>ResultPath = "$"</code> replaces the entire state input with the task output. Use <code>ResultPath = "$.taskResult"</code> to merge the output into the existing input object.</li>
+<li><strong>Lambda ARN versioning in SFN:</strong> The state machine definition uses the unqualified Lambda ARN (no version suffix). Step Functions always invokes <code>$LATEST</code> unless you specify a version or alias ARN.</li>
+<li><strong>include_execution_data in production:</strong> Setting <code>include_execution_data = true</code> logs all state inputs and outputs. If your workflow processes PII or secrets, set this to <code>false</code> and use <code>level = "ERROR"</code> only.</li>
+<li><strong>STANDARD workflow limits:</strong> Standard Workflows support up to 25,000 state transitions per execution. For very long-running workflows, design states to be coarse-grained.</li>
+</ul>
+<div class="note">
+<p><strong>Best practice:</strong> Always define <code>Retry</code> blocks on every <code>Task</code> state targeting Lambda. Lambda invocations can fail transiently due to cold starts, throttling, or service errors. The recommended error set is <code>["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException", "Lambda.TooManyRequestsException"]</code> with exponential backoff.</p>
+</div>
+</div>
+</body>
+</html>

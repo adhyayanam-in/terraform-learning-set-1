@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Module 3 – Scheduled Data Processing with EventBridge and Lambda</title>
+<style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0; padding: 2rem 3rem;
+      line-height: 1.7;
+      color: #1f2933;
+      background: #f9fafb;
+    }
+    .page-wrap { max-width: 960px; margin: 0 auto; background: #fff; padding: 2.5rem 3rem; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); }
+    h1 { font-size: 2rem; color: #111827; border-bottom: 3px solid #059669; padding-bottom: 0.5rem; margin-bottom: 0.5rem; }
+    h2 { font-size: 1.4rem; color: #064e3b; margin-top: 2.5rem; border-left: 4px solid #059669; padding-left: 0.75rem; }
+    h3 { font-size: 1.1rem; color: #1f2933; margin-top: 1.75rem; }
+    .subtitle { color: #4b5563; font-size: 1.05rem; margin-bottom: 2rem; }
+    code { background: #ecfdf5; padding: 0.15rem 0.45rem; border-radius: 4px; font-size: 0.9em; color: #064e3b; font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; }
+    pre {
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 1.25rem 1.5rem;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 0.875rem;
+      line-height: 1.6;
+      margin: 1rem 0 1.5rem;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    }
+    pre code { background: none; color: inherit; padding: 0; font-size: inherit; }
+    .note {
+      border-left: 4px solid #059669;
+      background: #ecfdf5;
+      padding: 0.75rem 1rem;
+      margin: 1.25rem 0;
+      border-radius: 0 6px 6px 0;
+    }
+    .warning {
+      border-left: 4px solid #b91c1c;
+      background: #fef2f2;
+      padding: 0.75rem 1rem;
+      margin: 1.25rem 0;
+      border-radius: 0 6px 6px 0;
+    }
+    .arch-diagram {
+      background: #0f172a;
+      color: #6ee7b7;
+      padding: 1.25rem 1.5rem;
+      border-radius: 6px;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 0.875rem;
+      overflow-x: auto;
+      margin: 1rem 0;
+    }
+    ul, ol { margin-left: 1.5rem; }
+    li { margin-bottom: 0.35rem; }
+    .badge {
+      display: inline-block;
+      background: #d1fae5;
+      color: #065f46;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.15rem 0.6rem;
+      border-radius: 999px;
+      margin-right: 0.4rem;
+      vertical-align: middle;
+    }
+    table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+    th { background: #064e3b; color: #fff; padding: 0.5rem 0.75rem; text-align: left; font-size: 0.875rem; }
+    td { padding: 0.5rem 0.75rem; border-bottom: 1px solid #e5e7eb; font-size: 0.875rem; }
+    tr:nth-child(even) td { background: #f0fdf4; }
+    .toc { background: #ecfdf5; border-radius: 6px; padding: 1rem 1.5rem; margin-bottom: 2rem; }
+    .toc h4 { margin: 0 0 0.5rem; color: #064e3b; }
+    .toc ol { margin: 0; }
+    .toc li { margin-bottom: 0.2rem; }
+    .toc a { color: #059669; text-decoration: none; }
+    .toc a:hover { text-decoration: underline; }
+    .module-nav { display: flex; gap: 1rem; margin-bottom: 2rem; flex-wrap: wrap; }
+    .module-nav span { background: #d1fae5; color: #065f46; padding: 0.3rem 0.8rem; border-radius: 999px; font-size: 0.8rem; font-weight: 600; }
+    .module-nav span.active { background: #065f46; color: #fff; }
+    .cron-table { background: #f8fafc; border-radius: 6px; padding: 1rem 1.25rem; margin: 1rem 0; }
+    .cron-table table { margin: 0; }
+  </style>
+</head>
+<body>
+<div class="page-wrap">
+<div class="module-nav">
+<span>Module 1 – Event-Driven Pipeline</span>
+<span>Module 2 – Step Functions</span>
+<span class="active">Module 3 – Scheduled Processing</span>
+<span>Module 4 – Observability</span>
+</div>
+<h1>Module 3 – Scheduled Data Processing with EventBridge and Lambda</h1>
+<p class="subtitle">
+<span class="badge">EventBridge</span>
+<span class="badge">Lambda</span>
+<span class="badge">S3</span>
+<span class="badge">DynamoDB</span>
+<span class="badge">SNS</span>
+<span class="badge">CloudWatch</span>
+<span class="badge">IAM</span>
+</p>
+<p>
+    This module implements a scheduled batch processing pipeline. An EventBridge scheduled rule
+    fires on a cron expression, invoking a Lambda function that reads data files from S3, processes
+    them (aggregates, transforms, or validates), writes summary results to DynamoDB, and optionally
+    publishes a completion or failure notification to SNS. A CloudWatch alarm monitors for Lambda
+    errors and throttles, routing alerts to the same SNS topic. This pattern is common for nightly
+    ETL jobs, periodic report generation, data quality checks, and cost-optimization sweeps.
+  </p>
+<div class="toc">
+<h4>Contents</h4>
+<ol>
+<li><a href="#arch">Architecture Overview</a></li>
+<li><a href="#prereqs">Prerequisites &amp; Cron Syntax</a></li>
+<li><a href="#s3">S3 Data Bucket</a></li>
+<li><a href="#iam">IAM Role &amp; Policy</a></li>
+<li><a href="#lambda">Lambda Function</a></li>
+<li><a href="#dynamodb">DynamoDB Results Table</a></li>
+<li><a href="#sns">SNS Topic for Alerts</a></li>
+<li><a href="#eventbridge">EventBridge Scheduled Rule</a></li>
+<li><a href="#cloudwatch">CloudWatch Log Group &amp; Alarms</a></li>
+<li><a href="#wiring">Connecting the Workflow</a></li>
+<li><a href="#deploy">Deploying &amp; Testing</a></li>
+<li><a href="#cleanup">Cleanup</a></li>
+<li><a href="#pitfalls">Common Pitfalls</a></li>
+</ol>
+</div>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="arch">Architecture Overview</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<p>
+    The schedule is the sole trigger — no human or application action is required. EventBridge
+    evaluates the cron expression in UTC and delivers a synthetic event to Lambda. Lambda lists
+    objects in an S3 prefix, processes each file, aggregates results, and writes a summary record
+    to DynamoDB. On success, it publishes a completion notification to SNS. On any unhandled
+    exception, the CloudWatch alarm fires and routes an alert to the same SNS topic.
+  </p>
+<div class="arch-diagram">
+<pre>
+┌──────────────────────────────────────────────────────────────────────────┐
+│                         AWS Account / us-east-1                          │
+│                                                                          │
+│  ┌──────────────────────────────────┐                                    │
+│  │  EventBridge Scheduled Rule      │                                    │
+│  │  cron(0 2 * * ? *)               │  ← fires daily at 02:00 UTC        │
+│  └──────────────────┬───────────────┘                                    │
+│                     │ invoke                                             │
+│                     ▼                                                    │
+│          ┌──────────────────────┐                                        │
+│          │  Lambda Function     │                                        │
+│          │  (batch_processor)   │                                        │
+│          └──┬──────────┬────────┘                                        │
+│             │          │                                                 │
+│   ListObjects│          │ PutItem (summary)                              │
+│   GetObject  │          │                                                │
+│             ▼          ▼                                                 │
+│  ┌──────────────┐  ┌──────────────────┐                                  │
+│  │  S3 Bucket   │  │  DynamoDB Table  │                                  │
+│  │  (data lake) │  │  (job_results)   │                                  │
+│  └──────────────┘  └──────────────────┘                                  │
+│                                                                          │
+│          │ Publish (on success or failure)                               │
+│          ▼                                                               │
+│  ┌────────────────┐                                                      │
+│  │  SNS Topic     │ ──▶ email / SQS / PagerDuty                         │
+│  │  (batch_alerts)│                                                      │
+│  └────────────────┘                                                      │
+│          ▲                                                               │
+│          │ alarm_actions                                                 │
+│  ┌────────────────────────────┐                                          │
+│  │  CloudWatch Metric Alarm   │                                          │
+│  │  Lambda Errors / Throttles │                                          │
+│  └────────────────────────────┘                                          │
+│                                                                          │
+│  CloudWatch Logs: /aws/lambda/batch-processor                            │
+└──────────────────────────────────────────────────────────────────────────┘
+</pre>
+</div>
+<ul>
+<li><strong>EventBridge Scheduled Rule:</strong> Cron-based trigger; fires at a fixed UTC schedule. No event source mapping or polling required.</li>
+<li><strong>Lambda Function:</strong> Stateless batch processor — lists S3 objects, reads and aggregates data, writes results, publishes notifications.</li>
+<li><strong>S3 Bucket:</strong> Holds the raw data files to be processed. Lambda reads from a date-partitioned prefix (e.g., <code>data/YYYY/MM/DD/</code>).</li>
+<li><strong>DynamoDB Table:</strong> Stores one summary record per job run (run ID, timestamp, files processed, record count, status).</li>
+<li><strong>SNS Topic:</strong> Receives both success notifications (from Lambda) and failure alerts (from CloudWatch alarms).</li>
+<li><strong>CloudWatch Logs &amp; Alarms:</strong> Captures Lambda output; alarms on errors and throttles.</li>
+</ul>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="prereqs">Prerequisites &amp; Cron Syntax</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<p>
+    EventBridge uses a six-field cron syntax that differs slightly from standard Unix cron.
+    All times are in UTC. The <code>?</code> wildcard is required in either the day-of-month
+    or day-of-week field (not both).
+  </p>
+<div class="cron-table">
+<table>
+<thead>
+<tr><th>Expression</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>cron(0 2 * * ? *)</code></td><td>Every day at 02:00 UTC</td></tr>
+<tr><td><code>cron(0 6 ? * MON-FRI *)</code></td><td>Weekdays at 06:00 UTC</td></tr>
+<tr><td><code>cron(0 0 1 * ? *)</code></td><td>First day of every month at midnight UTC</td></tr>
+<tr><td><code>cron(0/15 * * * ? *)</code></td><td>Every 15 minutes</td></tr>
+<tr><td><code>rate(1 hour)</code></td><td>Every hour (simpler rate syntax)</td></tr>
+<tr><td><code>rate(5 minutes)</code></td><td>Every 5 minutes</td></tr>
+</tbody>
+</table>
+</div>
+<div class="warning">
+<p><strong>EventBridge cron vs Unix cron:</strong> EventBridge cron has six fields: <code>Minutes Hours Day-of-month Month Day-of-week Year</code>. The <code>?</code> character means "no specific value" and is required in either day-of-month or day-of-week. Using standard 5-field Unix cron syntax will cause a validation error.</p>
+</div>
+<pre><code># versions.tf
+terraform {
+  required_version = "&gt;= 1.5"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~&gt; 6.0"
+    }
+  }
+}
+
+provider "aws" {
+  region = var.aws_region
+
+  default_tags {
+    tags = {
+      Project     = "batch-processor"
+      Environment = var.environment
+      ManagedBy   = "terraform"
+    }
+  }
+}
+
+variable "aws_region"        { default = "us-east-1" }
+variable "environment"       { default = "dev" }
+# The cron schedule — override per environment (e.g., rate(5 minutes) for dev testing).
+variable "schedule_expression" {
+  description = "EventBridge schedule expression (cron or rate)"
+  default     = "cron(0 2 * * ? *)"   # daily at 02:00 UTC
+}
+variable "data_prefix" {
+  description = "S3 key prefix for input data files"
+  default     = "data/"
+}
+
+data "aws_caller_identity" "current" {}
+</code></pre>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="s3">S3 Data Bucket</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<p>
+    The data bucket holds raw input files organized by date partition
+    (<code>data/YYYY/MM/DD/filename.csv</code>). Lambda lists objects under the current date's
+    prefix and processes each one. Lifecycle rules automatically transition old data to cheaper
+    storage tiers.
+  </p>
+<pre><code># s3.tf
+
+resource "aws_s3_bucket" "data_lake" {
+  bucket = "batch-proc-data-lake-${var.environment}-${data.aws_caller_identity.current.account_id}"
+}
+
+resource "aws_s3_bucket_public_access_block" "data_lake" {
+  bucket                  = aws_s3_bucket.data_lake.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_versioning" "data_lake" {
+  bucket = aws_s3_bucket.data_lake.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "data_lake" {
+  bucket = aws_s3_bucket.data_lake.id
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+# Lifecycle: move data older than 30 days to Intelligent-Tiering,
+# expire after 365 days. Adjust for your retention requirements.
+resource "aws_s3_bucket_lifecycle_configuration" "data_lake" {
+  bucket = aws_s3_bucket.data_lake.id
+
+  rule {
+    id     = "data-tiering"
+    status = "Enabled"
+
+    filter {
+      prefix = var.data_prefix
+    }
+
+    transition {
+      days          = 30
+      storage_class = "INTELLIGENT_TIERING"
+    }
+
+    expiration {
+      days = 365
+    }
+
+    # Also expire non-current versions to control storage costs.
+    noncurrent_version_expiration {
+      noncurrent_days = 30
+    }
+  }
+}
+</code></pre>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="iam">IAM Role &amp; Policy</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<p>
+    The Lambda execution role needs read access to S3, write access to DynamoDB, publish access
+    to SNS, and CloudWatch Logs write access. EventBridge invokes Lambda via a resource-based
+    policy (<code>aws_lambda_permission</code>), not an IAM role.
+  </p>
+<pre><code># iam.tf
+
+data "aws_iam_policy_document" "lambda_assume_role" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["lambda.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "batch_lambda" {
+  name               = "batch-proc-lambda-exec-${var.environment}"
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
+}
+
+data "aws_iam_policy_document" "batch_lambda_permissions" {
+  # CloudWatch Logs — structured logging from Lambda.
+  statement {
+    sid    = "CloudWatchLogs"
+    effect = "Allow"
+    actions = [
+      "logs:CreateLogGroup",
+      "logs:CreateLogStream",
+      "logs:PutLogEvents"
+    ]
+    resources = ["arn:aws:logs:*:*:*"]
+  }
+
+  # S3 — list and read objects in the data prefix only.
+  statement {
+    sid    = "S3ListBucket"
+    effect = "Allow"
+    actions = ["s3:ListBucket"]
+    resources = [aws_s3_bucket.data_lake.arn]
+    condition {
+      test     = "StringLike"
+      variable = "s3:prefix"
+      values   = ["${var.data_prefix}*"]
+    }
+  }
+
+  statement {
+    sid    = "S3GetObjects"
+    effect = "Allow"
+    actions = [
+      "s3:GetObject",
+      "s3:HeadObject"
+    ]
+    resources = ["${aws_s3_bucket.data_lake.arn}/${var.data_prefix}*"]
+  }
+
+  # DynamoDB — write job result summaries.
+  statement {
+    sid    = "DynamoDBWrite"
+    effect = "Allow"
+    actions = [
+      "dynamodb:PutItem",
+      "dynamodb:UpdateItem"
+    ]
+    resources = [aws_dynamodb_table.job_results.arn]
+  }
+
+  # SNS — publish completion and failure notifications.
+  statement {
+    sid     = "SNSPublish"
+    effect  = "Allow"
+    actions = ["sns:Publish"]
+    resources = [aws_sns_topic.batch_alerts.arn]
+  }
+}
+
+resource "aws_iam_policy" "batch_lambda_permissions" {
+  name   = "batch-proc-lambda-policy-${var.environment}"
+  policy = data.aws_iam_policy_document.batch_lambda_permissions.json
+}
+
+resource "aws_iam_role_policy_attachment" "batch_lambda_permissions" {
+  role       = aws_iam_role.batch_lambda.name
+  policy_arn = aws_iam_policy.batch_lambda_permissions.arn
+}
+
+# Grant EventBridge permission to invoke the Lambda function.
+resource "aws_lambda_permission" "allow_eventbridge_schedule" {
+  statement_id  = "AllowEventBridgeScheduledInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.batch_processor.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.daily_batch.arn
+}
+</code></pre>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="lambda">Lambda Function</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<p>
+    The batch processor Lambda is designed for reliability: it catches all exceptions, writes a
+    failure record to DynamoDB, and publishes a failure notification to SNS before re-raising.
+    This ensures the job result is always recorded, even on failure, and the CloudWatch alarm
+    provides a second layer of alerting.
+  </p>
+<h3>Handler (<code>batch_processor/handler.py</code>)</h3>
+<pre><code>"""
+batch_processor/handler.py
+Scheduled batch processor:
+  1. Lists S3 objects under today's date prefix.
+  2. Reads and aggregates each CSV file (counts rows, sums a value column).
+  3. Writes a summary record to DynamoDB.
+  4. Publishes a completion or failure notification to SNS.
+"""
+import csv
+import io
+import json
+import os
+import uuid
+import boto3
+from datetime import datetime, timezone
+
+s3       = boto3.client("s3")
+dynamodb = boto3.resource("dynamodb")
+sns      = boto3.client("sns")
+
+BUCKET_NAME    = os.environ["BUCKET_NAME"]
+DATA_PREFIX    = os.environ["DATA_PREFIX"]
+DYNAMODB_TABLE = os.environ["DYNAMODB_TABLE"]
+SNS_TOPIC_ARN  = os.environ["SNS_TOPIC_ARN"]
+
+def handler(event, context):
+    run_id    = str(uuid.uuid4())
+    now       = datetime.now(timezone.utc)
+    date_str  = now.strftime("%Y/%m/%d")
+    prefix    = f"{DATA_PREFIX}{date_str}/"
+
+    print(f"[INFO] Run {run_id} — processing prefix s3://{BUCKET_NAME}/{prefix}")
+
+    total_rows   = 0
+    total_value  = 0.0
+    files_processed = 0
+    status       = "SUCCESS"
+    error_detail = None
+
+    try:
+        # List all objects under today's date prefix.
+        paginator = s3.get_paginator("list_objects_v2")
+        pages = paginator.paginate(Bucket=BUCKET_NAME, Prefix=prefix)
+
+        for page in pages:
+            for obj in page.get("Contents", []):
+                key = obj["Key"]
+                if not key.endswith(".csv"):
+                    continue
+
+                # Read and parse the CSV file.
+                response = s3.get_object(Bucket=BUCKET_NAME, Key=key)
+                content  = response["Body"].read().decode("utf-8")
+                reader   = csv.DictReader(io.StringIO(content))
+
+                for row in reader:
+                    total_rows  += 1
+                    # Assumes a "value" column; adapt to your schema.
+                    total_value += float(row.get("value", 0))
+
+                files_processed += 1
+                print(f"[INFO] Processed {key}")
+
+    except Exception as exc:
+        status       = "FAILED"
+        error_detail = str(exc)
+        print(f"[ERROR] Batch run {run_id} failed: {exc}")
+
+    # Always write the job result to DynamoDB — even on failure.
+    table = dynamodb.Table(DYNAMODB_TABLE)
+    record = {
+        "run_id":          run_id,
+        "run_date":        now.strftime("%Y-%m-%d"),
+        "executed_at":     now.isoformat(),
+        "status":          status,
+        "files_processed": files_processed,
+        "total_rows":      total_rows,
+        "total_value":     str(round(total_value, 2)),  # DynamoDB requires Decimal or str for floats
+        "s3_prefix":       prefix,
+    }
+    if error_detail:
+        record["error"] = error_detail
+
+    table.put_item(Item=record)
+    print(f"[INFO] Wrote job result for run {run_id}: {status}")
+
+    # Publish SNS notification.
+    subject = f"Batch Job {status}: {run_id[:8]}"
+    sns.publish(
+        TopicArn=SNS_TOPIC_ARN,
+        Subject=subject,
+        Message=json.dumps(record, indent=2),
+    )
+
+    if status == "FAILED":
+        # Re-raise so Lambda marks the invocation as an error,
+        # which triggers the CloudWatch alarm.
+        raise RuntimeError(f"Batch run {run_id} failed: {error_detail}")
+
+    return {"run_id": run_id, "status": status, "files_processed": files_processed}
+</code></pre>
+<h3>Terraform resource</h3>
+<pre><code># lambda.tf
+
+resource "aws_lambda_function" "batch_processor" {
+  function_name    = "batch-proc-processor-${var.environment}"
+  description      = "Scheduled batch processor: reads S3, aggregates, writes DynamoDB, notifies SNS"
+  filename         = "${path.module}/batch_processor.zip"
+  source_code_hash = filebase64sha256("${path.module}/batch_processor.zip")
+  runtime          = "python3.12"
+  handler          = "handler.handler"
+  role             = aws_iam_role.batch_lambda.arn
+
+  # Batch jobs processing many files may run for several minutes.
+  # Lambda maximum timeout is 900 seconds (15 minutes).
+  timeout     = 300   # 5 minutes; adjust based on expected data volume
+  memory_size = 512   # More memory = more CPU; useful for CSV parsing
+
+  environment {
+    variables = {
+      BUCKET_NAME    = aws_s3_bucket.data_lake.bucket
+      DATA_PREFIX    = var.data_prefix
+      DYNAMODB_TABLE = aws_dynamodb_table.job_results.name
+      SNS_TOPIC_ARN  = aws_sns_topic.batch_alerts.arn
+      LOG_LEVEL      = "INFO"
+    }
+  }
+
+  depends_on = [
+    aws_cloudwatch_log_group.batch_lambda,
+    aws_iam_role_policy_attachment.batch_lambda_permissions
+  ]
+}
+</code></pre>
+<div class="note">
+<p><strong>Memory and timeout sizing:</strong> Lambda allocates CPU proportional to memory. For I/O-bound workloads (S3 reads, DynamoDB writes), 512 MB is a good starting point. For CPU-bound processing (parsing, compression, encryption), consider 1024–3008 MB. Always set <code>timeout</code> well above your p99 execution time — a timeout is an error from Lambda's perspective and will trigger your CloudWatch alarm.</p>
+</div>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="dynamodb">DynamoDB Results Table</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<p>
+    The job results table stores one record per batch run. The partition key is <code>run_date</code>
+    (YYYY-MM-DD) and the sort key is <code>run_id</code> (UUID). This schema allows querying all
+    runs for a given date with a <code>Query</code> operation, which is far more efficient than
+    a <code>Scan</code>.
+  </p>
+<pre><code># dynamodb.tf
+
+resource "aws_dynamodb_table" "job_results" {
+  name         = "batch-proc-job-results-${var.environment}"
+  billing_mode = "PAY_PER_REQUEST"
+
+  # Partition by date — enables efficient queries like "all runs on 2026-07-09"
+  hash_key  = "run_date"
+  range_key = "run_id"
+
+  attribute {
+    name = "run_date"
+    type = "S"
+  }
+
+  attribute {
+    name = "run_id"
+    type = "S"
+  }
+
+  # Expire old job records after 90 days.
+  ttl {
+    attribute_name = "ttl_epoch"
+    enabled        = true
+  }
+
+  point_in_time_recovery {
+    enabled = true
+  }
+}
+</code></pre>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="sns">SNS Topic for Alerts</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<p>
+    A single SNS topic receives both Lambda-published completion/failure messages and CloudWatch
+    alarm notifications. This consolidates all batch job alerting into one channel.
+  </p>
+<pre><code># sns.tf
+
+resource "aws_sns_topic" "batch_alerts" {
+  name              = "batch-proc-alerts-${var.environment}"
+  display_name      = "Batch Processor Alerts"
+  kms_master_key_id = "alias/aws/sns"
+}
+
+# Allow Lambda execution role and CloudWatch to publish.
+data "aws_iam_policy_document" "batch_alerts_policy" {
+  # Lambda publishes job completion/failure messages.
+  statement {
+    sid     = "AllowLambdaPublish"
+    effect  = "Allow"
+    actions = ["SNS:Publish"]
+    principals {
+      type        = "AWS"
+      identifiers = [aws_iam_role.batch_lambda.arn]
+    }
+    resources = [aws_sns_topic.batch_alerts.arn]
+  }
+
+  # CloudWatch publishes alarm state change notifications.
+  statement {
+    sid     = "AllowCloudWatchPublish"
+    effect  = "Allow"
+    actions = ["SNS:Publish"]
+    principals {
+      type        = "Service"
+      identifiers = ["cloudwatch.amazonaws.com"]
+    }
+    resources = [aws_sns_topic.batch_alerts.arn]
+  }
+}
+
+resource "aws_sns_topic_policy" "batch_alerts" {
+  arn    = aws_sns_topic.batch_alerts.arn
+  policy = data.aws_iam_policy_document.batch_alerts_policy.json
+}
+
+# Ops team email subscription.
+resource "aws_sns_topic_subscription" "ops_email" {
+  topic_arn = aws_sns_topic.batch_alerts.arn
+  protocol  = "email"
+  endpoint  = "data-ops@example.com"
+}
+</code></pre>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="eventbridge">EventBridge Scheduled Rule</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<p>
+    The EventBridge rule uses a <code>schedule_expression</code> instead of an
+    <code>event_pattern</code>. Scheduled rules can only be placed on the default event bus.
+    The rule delivers a synthetic event to Lambda — the event payload contains metadata about
+    the rule invocation but no application-specific data (the Lambda reads its configuration
+    from environment variables).
+  </p>
+<pre><code># eventbridge.tf
+
+resource "aws_cloudwatch_event_rule" "daily_batch" {
+  name                = "batch-proc-daily-schedule-${var.environment}"
+  description         = "Triggers the batch processor Lambda on a schedule"
+  schedule_expression = var.schedule_expression   # e.g., "cron(0 2 * * ? *)"
+
+  # state replaces the deprecated is_enabled argument.
+  state = "ENABLED"
+
+  # Note: schedule_expression and event_pattern are mutually exclusive.
+  # Scheduled rules are always placed on the default event bus.
+}
+
+resource "aws_cloudwatch_event_target" "schedule_to_lambda" {
+  rule      = aws_cloudwatch_event_rule.daily_batch.name
+  target_id = "batch-proc-daily-lambda-target"
+  arn       = aws_lambda_function.batch_processor.arn
+
+  # Optional: pass a static JSON input to override the default EventBridge event.
+  # Useful for parameterizing the Lambda without changing environment variables.
+  # input = jsonencode({ "override_prefix": "data/backfill/" })
+
+  # Retry policy: for scheduled jobs, limit retries to avoid duplicate processing.
+  retry_policy {
+    maximum_event_age_in_seconds = 1800   # retry for up to 30 minutes
+    maximum_retry_attempts       = 2
+  }
+}
+</code></pre>
+<div class="note">
+<p><strong>Idempotency for scheduled jobs:</strong> EventBridge may invoke Lambda more than once for a single scheduled event (at-least-once delivery). Design your Lambda handler to be idempotent — use the <code>run_id</code> UUID as a DynamoDB condition expression to prevent duplicate writes, or use a DynamoDB conditional put: <code>ConditionExpression="attribute_not_exists(run_id)"</code>.</p>
+</div>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="cloudwatch">CloudWatch Log Group &amp; Alarms</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<p>
+    For scheduled batch jobs, observability is critical — there is no human in the loop to notice
+    a silent failure. Define alarms for Lambda errors, throttles, and duration (to catch runaway
+    jobs). All alarms route to the SNS topic.
+  </p>
+<pre><code># cloudwatch.tf
+
+# Pre-create the log group with a retention policy.
+resource "aws_cloudwatch_log_group" "batch_lambda" {
+  name              = "/aws/lambda/${aws_lambda_function.batch_processor.function_name}"
+  retention_in_days = 90   # keep batch job logs for 90 days for audit
+}
+
+# ── Alarm: Lambda errors ───────────────────────────────────────────────
+# Fires if the Lambda function returns any error (exception or timeout).
+resource "aws_cloudwatch_metric_alarm" "batch_lambda_errors" {
+  alarm_name          = "batch-proc-lambda-errors-${var.environment}"
+  alarm_description   = "Batch processor Lambda returned an error"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  metric_name         = "Errors"
+  namespace           = "AWS/Lambda"
+  period              = 300   # 5-minute window matches the schedule granularity
+  statistic           = "Sum"
+  threshold           = 1
+
+  dimensions = {
+    FunctionName = aws_lambda_function.batch_processor.function_name
+  }
+
+  alarm_actions             = [aws_sns_topic.batch_alerts.arn]
+  ok_actions                = [aws_sns_topic.batch_alerts.arn]
+  insufficient_data_actions = []
+  treat_missing_data        = "notBreaching"
+}
+
+# ── Alarm: Lambda throttles ────────────────────────────────────────────
+# Fires if Lambda is throttled (concurrent execution limit reached).
+resource "aws_cloudwatch_metric_alarm" "batch_lambda_throttles" {
+  alarm_name          = "batch-proc-lambda-throttles-${var.environment}"
+  alarm_description   = "Batch processor Lambda is being throttled"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "Throttles"
+  namespace           = "AWS/Lambda"
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 0
+
+  dimensions = {
+    FunctionName = aws_lambda_function.batch_processor.function_name
+  }
+
+  alarm_actions      = [aws_sns_topic.batch_alerts.arn]
+  treat_missing_data = "notBreaching"
+}
+
+# ── Alarm: Lambda duration approaching timeout ─────────────────────────
+# Fires if average duration exceeds 80% of the configured timeout (300s).
+# This gives you time to investigate before the job starts timing out.
+resource "aws_cloudwatch_metric_alarm" "batch_lambda_duration" {
+  alarm_name          = "batch-proc-lambda-duration-${var.environment}"
+  alarm_description   = "Batch processor Lambda duration is approaching timeout"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "Duration"
+  namespace           = "AWS/Lambda"
+  period              = 300
+  statistic           = "Maximum"
+  threshold           = 240000   # 240,000 ms = 240 seconds (80% of 300s timeout)
+  unit                = "Milliseconds"
+
+  dimensions = {
+    FunctionName = aws_lambda_function.batch_processor.function_name
+  }
+
+  alarm_actions      = [aws_sns_topic.batch_alerts.arn]
+  treat_missing_data = "notBreaching"
+}
+
+# ── Alarm: No invocations (missed schedule) ────────────────────────────
+# Fires if the Lambda was NOT invoked in the expected window.
+# This catches cases where the EventBridge rule was accidentally disabled.
+# Adjust the period to match your schedule (86400s = 24 hours for daily jobs).
+resource "aws_cloudwatch_metric_alarm" "batch_lambda_no_invocations" {
+  alarm_name          = "batch-proc-lambda-no-invocations-${var.environment}"
+  alarm_description   = "Batch processor Lambda was not invoked — schedule may be broken"
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "Invocations"
+  namespace           = "AWS/Lambda"
+  period              = 86400   # 24-hour window for a daily job
+  statistic           = "Sum"
+  threshold           = 1
+
+  dimensions = {
+    FunctionName = aws_lambda_function.batch_processor.function_name
+  }
+
+  alarm_actions      = [aws_sns_topic.batch_alerts.arn]
+  # treat_missing_data = "breaching" ensures the alarm fires if there is no data
+  # (i.e., Lambda was never invoked in the period).
+  treat_missing_data = "breaching"
+}
+</code></pre>
+<div class="note">
+<p><strong>The "missed schedule" alarm</strong> (<code>batch_lambda_no_invocations</code>) is one of the most valuable alarms for scheduled jobs. Without it, a disabled EventBridge rule or a misconfigured schedule will silently skip job runs indefinitely. Set <code>treat_missing_data = "breaching"</code> so the alarm fires when there is no invocation data at all.</p>
+</div>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="wiring">Connecting the Workflow</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<p>
+    All resources are wired through Terraform attribute references. The complete dependency order
+    for <code>terraform apply</code> is:
+  </p>
+<table>
+<thead>
+<tr><th>Creation Order</th><th>Resource</th><th>Key Dependencies</th></tr>
+</thead>
+<tbody>
+<tr><td>1</td><td><code>aws_s3_bucket.data_lake</code></td><td>—</td></tr>
+<tr><td>2</td><td><code>aws_dynamodb_table.job_results</code></td><td>—</td></tr>
+<tr><td>3</td><td><code>aws_sns_topic.batch_alerts</code></td><td>—</td></tr>
+<tr><td>4</td><td><code>aws_iam_role.batch_lambda</code></td><td>—</td></tr>
+<tr><td>5</td><td><code>aws_iam_policy.batch_lambda_permissions</code></td><td>S3, DynamoDB, SNS ARNs</td></tr>
+<tr><td>6</td><td><code>aws_cloudwatch_log_group.batch_lambda</code></td><td>Lambda function name (known after apply)</td></tr>
+<tr><td>7</td><td><code>aws_lambda_function.batch_processor</code></td><td>IAM role, DynamoDB, SNS, S3 (env vars)</td></tr>
+<tr><td>8</td><td><code>aws_cloudwatch_event_rule.daily_batch</code></td><td>—</td></tr>
+<tr><td>9</td><td><code>aws_cloudwatch_event_target.schedule_to_lambda</code></td><td>Rule name, Lambda ARN</td></tr>
+<tr><td>10</td><td><code>aws_lambda_permission.allow_eventbridge_schedule</code></td><td>Lambda name, Rule ARN</td></tr>
+<tr><td>11</td><td><code>aws_cloudwatch_metric_alarm.*</code></td><td>Lambda name, SNS ARN</td></tr>
+</tbody>
+</table>
+<pre><code># outputs.tf
+
+output "data_lake_bucket" {
+  description = "S3 data lake bucket name"
+  value       = aws_s3_bucket.data_lake.bucket
+}
+
+output "batch_lambda_name" {
+  description = "Batch processor Lambda function name"
+  value       = aws_lambda_function.batch_processor.function_name
+}
+
+output "job_results_table" {
+  description = "DynamoDB job results table name"
+  value       = aws_dynamodb_table.job_results.name
+}
+
+output "schedule_expression" {
+  description = "Active EventBridge schedule expression"
+  value       = aws_cloudwatch_event_rule.daily_batch.schedule_expression
+}
+</code></pre>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="deploy">Deploying &amp; Testing</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h3>Package and deploy</h3>
+<pre><code>cd batch_processor &amp;&amp; zip ../batch_processor.zip handler.py &amp;&amp; cd ..
+
+terraform init
+terraform plan -out=tfplan
+terraform apply tfplan
+</code></pre>
+<h3>Upload test data</h3>
+<pre><code">BUCKET=$(terraform output -raw data_lake_bucket)
+DATE_PREFIX=$(date -u +%Y/%m/%d)
+
+# Create a sample CSV file
+cat &gt; /tmp/sample.csv &lt;&lt; 'EOF'
+id,name,value
+1,widget-a,10.50
+2,widget-b,25.00
+3,widget-c,7.75
+EOF
+
+aws s3 cp /tmp/sample.csv s3://${BUCKET}/data/${DATE_PREFIX}/sample.csv
+</code"></pre>
+<h3>Manually trigger the Lambda (without waiting for the schedule)</h3>
+<pre><code">FUNCTION=$(terraform output -raw batch_lambda_name)
+
+# Invoke with a synthetic EventBridge scheduled event payload.
+aws lambda invoke \
+  --function-name ${FUNCTION} \
+  --payload '{"source":"aws.events","detail-type":"Scheduled Event","detail":{}}' \
+  --cli-binary-format raw-in-base64-out \
+  response.json
+
+cat response.json
+</code"></pre>
+<h3>Verify results</h3>
+<pre><code">TABLE=$(terraform output -raw job_results_table)
+TODAY=$(date -u +%Y-%m-%d)
+
+# Query all runs for today
+aws dynamodb query \
+  --table-name ${TABLE} \
+  --key-condition-expression "run_date = :d" \
+  --expression-attribute-values '{":d":{"S":"'${TODAY}'"}}' \
+  --query "Items[*].{run_id:run_id.S,status:status.S,files:files_processed.N}"
+
+# Tail Lambda logs
+aws logs tail /aws/lambda/${FUNCTION} --follow
+</code"></pre>
+<h3>Test the "missed schedule" alarm</h3>
+<pre><code"># Temporarily disable the EventBridge rule to simulate a missed schedule.
+aws events disable-rule --name batch-proc-daily-schedule-dev
+
+# After 24 hours (or adjust the alarm period for testing), the alarm will fire.
+# Re-enable the rule:
+aws events enable-rule --name batch-proc-daily-schedule-dev
+</code"></pre>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="cleanup">Cleanup</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<pre><code"># Empty the S3 bucket before destroying (required if versioning is enabled)
+BUCKET=$(terraform output -raw data_lake_bucket)
+aws s3 rm s3://${BUCKET} --recursive
+
+# Remove all object versions
+aws s3api delete-objects \
+  --bucket ${BUCKET} \
+  --delete "$(aws s3api list-object-versions \
+    --bucket ${BUCKET} \
+    --query '{Objects: Versions[].{Key:Key,VersionId:VersionId}}')"
+
+terraform destroy
+</code"></pre>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="pitfalls">Common Pitfalls</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="warning">
+<p><strong>Six-field cron syntax:</strong> EventBridge requires a six-field cron expression (<code>Minutes Hours Day-of-month Month Day-of-week Year</code>). Standard Unix cron has five fields. Using five fields will cause a Terraform apply error: <em>ValidationException: Parameter ScheduleExpression is not valid</em>.</p>
+</div>
+<div class="warning">
+<p><strong>Scheduled rules on non-default event buses:</strong> The <code>schedule_expression</code> argument only works on the default event bus. If you specify a custom <code>event_bus_name</code>, you must use <code>event_pattern</code> instead. Terraform will not validate this constraint — it will apply successfully but the rule will never fire.</p>
+</div>
+<ul>
+<li><strong>Lambda timeout for large datasets:</strong> Lambda has a maximum timeout of 900 seconds. For very large datasets, consider breaking the job into smaller chunks using Step Functions Map state or SQS-based fan-out.</li>
+<li><strong>Duplicate processing:</strong> EventBridge guarantees at-least-once delivery. Use DynamoDB conditional writes (<code>attribute_not_exists(run_id)</code>) to prevent duplicate records if Lambda is invoked twice for the same scheduled event.</li>
+<li><strong>S3 ListObjects pagination:</strong> <code>list_objects_v2</code> returns at most 1,000 objects per page. Always use a paginator (as shown in the handler) to process all objects in a prefix.</li>
+<li><strong>Float precision in DynamoDB:</strong> DynamoDB's <code>N</code> type uses arbitrary-precision decimals. Python's <code>float</code> can introduce precision errors. Use Python's <code>Decimal</code> type or store floats as strings.</li>
+<li><strong>Cold start latency:</strong> For scheduled jobs, cold start latency is usually acceptable. If your job has strict SLA requirements, consider using Provisioned Concurrency on the Lambda function.</li>
+<li><strong>CloudWatch alarm period alignment:</strong> The "no invocations" alarm uses a 24-hour period. CloudWatch evaluates alarms at the end of each period. For a daily job, the alarm may not fire until up to 24 hours after the missed run. For tighter SLAs, use a shorter period and adjust the threshold accordingly.</li>
+</ul>
+<div class="note">
+<p><strong>Best practice — environment-specific schedules:</strong> Use a Terraform variable for <code>schedule_expression</code> and set it to <code>rate(5 minutes)</code> in dev/test environments for rapid iteration, and <code>cron(0 2 * * ? *)</code> in production. This avoids waiting 24 hours to test a daily job.</p>
+</div>
+</div>
+</body>
+</html>

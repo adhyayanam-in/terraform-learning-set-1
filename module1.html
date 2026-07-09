@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Module 1 – S3 → EventBridge → Lambda → DynamoDB → SNS</title>
+<style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0; padding: 2rem 3rem;
+      line-height: 1.7;
+      color: #1f2933;
+      background: #f9fafb;
+    }
+    .page-wrap { max-width: 960px; margin: 0 auto; background: #fff; padding: 2.5rem 3rem; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); }
+    h1 { font-size: 2rem; color: #111827; border-bottom: 3px solid #2563eb; padding-bottom: 0.5rem; margin-bottom: 0.5rem; }
+    h2 { font-size: 1.4rem; color: #1e3a5f; margin-top: 2.5rem; border-left: 4px solid #2563eb; padding-left: 0.75rem; }
+    h3 { font-size: 1.1rem; color: #1f2933; margin-top: 1.75rem; }
+    .subtitle { color: #4b5563; font-size: 1.05rem; margin-bottom: 2rem; }
+    code { background: #f1f5f9; padding: 0.15rem 0.45rem; border-radius: 4px; font-size: 0.9em; color: #0f172a; font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; }
+    pre {
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 1.25rem 1.5rem;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 0.875rem;
+      line-height: 1.6;
+      margin: 1rem 0 1.5rem;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    }
+    pre code { background: none; color: inherit; padding: 0; font-size: inherit; }
+    .note {
+      border-left: 4px solid #2563eb;
+      background: #eff6ff;
+      padding: 0.75rem 1rem;
+      margin: 1.25rem 0;
+      border-radius: 0 6px 6px 0;
+    }
+    .warning {
+      border-left: 4px solid #b91c1c;
+      background: #fef2f2;
+      padding: 0.75rem 1rem;
+      margin: 1.25rem 0;
+      border-radius: 0 6px 6px 0;
+    }
+    .arch-diagram {
+      background: #0f172a;
+      color: #7dd3fc;
+      padding: 1.25rem 1.5rem;
+      border-radius: 6px;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 0.875rem;
+      overflow-x: auto;
+      margin: 1rem 0;
+    }
+    ul, ol { margin-left: 1.5rem; }
+    li { margin-bottom: 0.35rem; }
+    .badge {
+      display: inline-block;
+      background: #dbeafe;
+      color: #1e40af;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.15rem 0.6rem;
+      border-radius: 999px;
+      margin-right: 0.4rem;
+      vertical-align: middle;
+    }
+    table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+    th { background: #1e3a5f; color: #fff; padding: 0.5rem 0.75rem; text-align: left; font-size: 0.875rem; }
+    td { padding: 0.5rem 0.75rem; border-bottom: 1px solid #e5e7eb; font-size: 0.875rem; }
+    tr:nth-child(even) td { background: #f8fafc; }
+    .toc { background: #f1f5f9; border-radius: 6px; padding: 1rem 1.5rem; margin-bottom: 2rem; }
+    .toc h4 { margin: 0 0 0.5rem; color: #1e3a5f; }
+    .toc ol { margin: 0; }
+    .toc li { margin-bottom: 0.2rem; }
+    .toc a { color: #2563eb; text-decoration: none; }
+    .toc a:hover { text-decoration: underline; }
+    .module-nav { display: flex; gap: 1rem; margin-bottom: 2rem; flex-wrap: wrap; }
+    .module-nav span { background: #e0e7ff; color: #3730a3; padding: 0.3rem 0.8rem; border-radius: 999px; font-size: 0.8rem; font-weight: 600; }
+    .module-nav span.active { background: #3730a3; color: #fff; }
+  </style>
+</head>
+<body>
+<div class="page-wrap">
+<div class="module-nav">
+<span class="active">Module 1 – Event-Driven Pipeline</span>
+<span>Module 2 – Step Functions</span>
+<span>Module 3 – Scheduled Processing</span>
+<span>Module 4 – Observability</span>
+</div>
+<h1>Module 1 – Event-Driven Ingestion Pipeline</h1>
+<p class="subtitle">
+<span class="badge">S3</span>
+<span class="badge">EventBridge</span>
+<span class="badge">Lambda</span>
+<span class="badge">DynamoDB</span>
+<span class="badge">SNS</span>
+<span class="badge">CloudWatch</span>
+<span class="badge">IAM</span>
+</p>
+<p>
+    This module builds a fully event-driven ingestion pipeline. When a file lands in an S3 bucket,
+    EventBridge detects the creation event and invokes a Lambda function. Lambda extracts metadata
+    from the S3 event, persists a record to DynamoDB, and publishes a notification to an SNS topic.
+    All Lambda execution logs flow to CloudWatch Logs. This is a foundational pattern for data lake
+    ingestion, file processing, and audit-trail systems.
+  </p>
+<div class="toc">
+<h4>Contents</h4>
+<ol>
+<li><a href="#arch">Architecture Overview</a></li>
+<li><a href="#prereqs">Prerequisites</a></li>
+<li><a href="#s3">S3 Bucket &amp; EventBridge Notification</a></li>
+<li><a href="#iam">IAM Roles &amp; Policies</a></li>
+<li><a href="#lambda">Lambda Function</a></li>
+<li><a href="#dynamodb">DynamoDB Table</a></li>
+<li><a href="#sns">SNS Topic</a></li>
+<li><a href="#eventbridge">EventBridge Rule &amp; Target</a></li>
+<li><a href="#cloudwatch">CloudWatch Log Group &amp; Alarm</a></li>
+<li><a href="#wiring">Connecting the Workflow</a></li>
+<li><a href="#deploy">Deploying &amp; Testing</a></li>
+<li><a href="#cleanup">Cleanup</a></li>
+<li><a href="#pitfalls">Common Pitfalls</a></li>
+</ol>
+</div>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="arch">Architecture Overview</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<p>
+    The pipeline is entirely asynchronous and serverless. S3 emits an EventBridge event natively
+    (no polling, no Lambda trigger wired directly to S3). EventBridge evaluates the event pattern
+    and routes matching events to Lambda. Lambda is the sole compute layer — it reads the event
+    payload, writes to DynamoDB, and fans out to SNS.
+  </p>
+<div class="arch-diagram">
+<pre>
+┌─────────────────────────────────────────────────────────────────────┐
+│                        AWS Account / us-east-1                      │
+│                                                                     │
+│  ┌──────────────┐    EventBridge     ┌──────────────────────────┐   │
+│  │  S3 Bucket   │ ──────────────────▶│  EventBridge Rule        │   │
+│  │  (input)     │  "Object Created"  │  source: aws.s3          │   │
+│  └──────────────┘                    │  detail-type: Object      │   │
+│                                      │  Created                  │   │
+│                                      └────────────┬─────────────┘   │
+│                                                   │ invoke          │
+│                                      ┌────────────▼─────────────┐   │
+│                                      │  Lambda Function          │   │
+│                                      │  (process_s3_event)       │   │
+│                                      └──┬──────────────┬─────────┘   │
+│                                         │              │             │
+│                              PutItem    │              │  Publish    │
+│                         ┌───────────────▼──┐    ┌──────▼──────────┐ │
+│                         │  DynamoDB Table  │    │   SNS Topic     │ │
+│                         │  (s3_events)     │    │   (alerts)      │ │
+│                         └──────────────────┘    └─────────────────┘ │
+│                                                                     │
+│  CloudWatch Logs: /aws/lambda/process-s3-event                      │
+└─────────────────────────────────────────────────────────────────────┘
+</pre>
+</div>
+<ul>
+<li><strong>S3 Bucket:</strong> Receives uploaded files; emits native EventBridge events when EventBridge notifications are enabled.</li>
+<li><strong>EventBridge Rule:</strong> Filters for <code>Object Created</code> events from the specific bucket ARN and routes them to Lambda.</li>
+<li><strong>Lambda Function:</strong> Stateless compute — parses the event, writes metadata to DynamoDB, publishes to SNS.</li>
+<li><strong>DynamoDB Table:</strong> Durable, low-latency store for per-object metadata records (key, size, timestamp, ETag).</li>
+<li><strong>SNS Topic:</strong> Fan-out notification channel; subscribers (email, SQS, HTTP) receive alerts on each ingestion.</li>
+<li><strong>CloudWatch Logs:</strong> Captures all Lambda stdout/stderr for debugging and audit.</li>
+<li><strong>IAM Roles/Policies:</strong> Least-privilege execution roles for Lambda and EventBridge.</li>
+</ul>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="prereqs">Prerequisites</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<p>Before applying this module, ensure you have:</p>
+<ul>
+<li>Terraform CLI ≥ 1.5 installed</li>
+<li>AWS credentials configured (environment variables, <code>~/.aws/credentials</code>, or an IAM instance profile)</li>
+<li>An AWS account with permissions to create IAM roles, Lambda functions, S3 buckets, DynamoDB tables, SNS topics, and EventBridge rules</li>
+<li>A Lambda deployment package (ZIP file) — see the Lambda section below for a minimal Python example</li>
+</ul>
+<pre><code># versions.tf — pin provider versions for reproducibility
+terraform {
+  required_version = "&gt;= 1.5"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~&gt; 6.0"   # tracks 6.x, currently 6.53.0
+    }
+  }
+}
+
+provider "aws" {
+  region  = var.aws_region
+  profile = var.aws_profile
+
+  default_tags {
+    tags = {
+      Project     = "etl-pipeline"
+      Environment = var.environment
+      ManagedBy   = "terraform"
+    }
+  }
+}
+
+variable "aws_region"  { default = "us-east-1" }
+variable "aws_profile" { default = "default" }
+variable "environment" { default = "dev" }
+</code></pre>
+<div class="note">
+<p><strong>Best practice:</strong> Use <code>default_tags</code> on the provider block to apply tags to every resource automatically. This avoids repeating <code>tags</code> blocks on each resource and ensures consistent cost allocation.</p>
+</div>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="s3">S3 Bucket &amp; EventBridge Notification</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<p>
+    The S3 bucket is the entry point of the pipeline. In provider v6.x, bucket ACL configuration
+    is managed via separate resources (<code>aws_s3_bucket_ownership_controls</code> and
+    <code>aws_s3_bucket_acl</code>). The <code>acl</code> argument was removed from
+    <code>aws_s3_bucket</code> in v4+. To route S3 events through EventBridge (rather than
+    configuring Lambda triggers directly on S3), enable EventBridge notifications via
+    <code>aws_s3_bucket_notification</code> with <code>eventbridge = true</code>.
+  </p>
+<pre><code># s3.tf
+
+# The primary input bucket — all uploaded objects trigger the pipeline.
+resource "aws_s3_bucket" "input" {
+  bucket = "etl-pipeline-input-${var.environment}-${data.aws_caller_identity.current.account_id}"
+
+  # Prevent accidental deletion of a bucket that may contain data.
+  lifecycle {
+    prevent_destroy = false   # set to true in production
+  }
+}
+
+# Block all public access — this bucket should never be public.
+resource "aws_s3_bucket_public_access_block" "input" {
+  bucket = aws_s3_bucket.input.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+# Enable versioning so that overwritten objects are preserved.
+resource "aws_s3_bucket_versioning" "input" {
+  bucket = aws_s3_bucket.input.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+# Enable server-side encryption with AWS-managed keys.
+resource "aws_s3_bucket_server_side_encryption_configuration" "input" {
+  bucket = aws_s3_bucket.input.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+# Route ALL S3 events for this bucket through EventBridge.
+# This is the recommended pattern: one setting enables all event types,
+# and EventBridge rules filter to exactly what you need.
+resource "aws_s3_bucket_notification" "input" {
+  bucket      = aws_s3_bucket.input.id
+  eventbridge = true   # sends all S3 events to the default EventBridge bus
+}
+
+# Retrieve the current AWS account ID for use in bucket naming.
+data "aws_caller_identity" "current" {}
+</code></pre>
+<p>
+<strong>Key arguments:</strong> <code>bucket</code> (globally unique name),
+    <code>eventbridge = true</code> in <code>aws_s3_bucket_notification</code> (enables native
+    EventBridge integration — no SQS or SNS intermediary needed).
+  </p>
+<div class="note">
+<p><strong>Why EventBridge over direct S3 → Lambda triggers?</strong> The EventBridge pattern decouples the bucket from its consumers. You can add, remove, or change Lambda targets without modifying the bucket configuration. Multiple rules can match the same event, enabling fan-out to different processors.</p>
+</div>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="iam">IAM Roles &amp; Policies</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<p>
+    IAM is the most common source of failures in multi-service pipelines. Define roles and policies
+    before the resources that depend on them. Lambda needs a trust policy allowing
+    <code>lambda.amazonaws.com</code> to assume the role, plus permissions to write to DynamoDB,
+    publish to SNS, and write CloudWatch Logs. EventBridge needs permission to invoke the Lambda function
+    (granted via <code>aws_lambda_permission</code>, not an IAM policy on the rule).
+  </p>
+<pre><code># iam.tf
+
+# ── Lambda execution role ──────────────────────────────────────────────
+# The trust policy allows the Lambda service to assume this role.
+data "aws_iam_policy_document" "lambda_assume_role" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["lambda.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "lambda_exec" {
+  name               = "etl-pipeline-lambda-exec-${var.environment}"
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
+}
+
+# ── Lambda permissions policy ──────────────────────────────────────────
+# Least-privilege: only the specific actions this Lambda needs.
+data "aws_iam_policy_document" "lambda_permissions" {
+  # Write structured logs to CloudWatch Logs.
+  statement {
+    sid    = "AllowCloudWatchLogs"
+    effect = "Allow"
+    actions = [
+      "logs:CreateLogGroup",
+      "logs:CreateLogStream",
+      "logs:PutLogEvents"
+    ]
+    resources = ["arn:aws:logs:*:*:*"]
+  }
+
+  # Write metadata records to the DynamoDB table.
+  statement {
+    sid    = "AllowDynamoDBWrite"
+    effect = "Allow"
+    actions = [
+      "dynamodb:PutItem",
+      "dynamodb:UpdateItem"
+    ]
+    resources = [aws_dynamodb_table.s3_events.arn]
+  }
+
+  # Publish notifications to the SNS topic.
+  statement {
+    sid     = "AllowSNSPublish"
+    effect  = "Allow"
+    actions = ["sns:Publish"]
+    resources = [aws_sns_topic.ingestion_alerts.arn]
+  }
+
+  # Read the triggering object from S3 (if Lambda needs to inspect content).
+  statement {
+    sid    = "AllowS3Read"
+    effect = "Allow"
+    actions = [
+      "s3:GetObject",
+      "s3:HeadObject"
+    ]
+    resources = ["${aws_s3_bucket.input.arn}/*"]
+  }
+}
+
+resource "aws_iam_policy" "lambda_permissions" {
+  name   = "etl-pipeline-lambda-policy-${var.environment}"
+  policy = data.aws_iam_policy_document.lambda_permissions.json
+}
+
+# Attach the custom policy to the Lambda execution role.
+resource "aws_iam_role_policy_attachment" "lambda_permissions" {
+  role       = aws_iam_role.lambda_exec.name
+  policy_arn = aws_iam_policy.lambda_permissions.arn
+}
+
+# ── EventBridge → Lambda permission ───────────────────────────────────
+# aws_lambda_permission grants EventBridge the right to invoke the function.
+# This is a resource-based policy on Lambda, NOT an IAM role policy.
+resource "aws_lambda_permission" "allow_eventbridge" {
+  statement_id  = "AllowEventBridgeInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.process_s3_event.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.s3_object_created.arn
+}
+</code></pre>
+<div class="warning">
+<p><strong>Critical:</strong> Without <code>aws_lambda_permission</code>, EventBridge will receive a 403 when attempting to invoke Lambda, and the event will be silently dropped (or sent to a dead-letter queue if configured). Always pair every <code>aws_cloudwatch_event_target</code> pointing to Lambda with a corresponding <code>aws_lambda_permission</code>.</p>
+</div>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="lambda">Lambda Function</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<p>
+    The Lambda function is the processing core. It receives the EventBridge event (which wraps the
+    S3 notification), extracts object metadata, writes to DynamoDB, and publishes to SNS. The
+    deployment package is a ZIP file containing the handler code.
+  </p>
+<h3>Minimal Python handler (save as <code>lambda/handler.py</code>)</h3>
+<pre><code>"""
+handler.py — S3 event processor
+Receives EventBridge events for S3 Object Created, writes metadata to
+DynamoDB, and publishes a notification to SNS.
+"""
+import json
+import os
+import boto3
+from datetime import datetime, timezone
+
+dynamodb = boto3.resource("dynamodb")
+sns      = boto3.client("sns")
+
+TABLE_NAME = os.environ["DYNAMODB_TABLE"]
+TOPIC_ARN  = os.environ["SNS_TOPIC_ARN"]
+
+def handler(event, context):
+    # EventBridge wraps the S3 event; the S3 detail is in event["detail"]
+    detail = event.get("detail", {})
+    bucket = detail.get("bucket", {}).get("name", "unknown")
+    key    = detail.get("object", {}).get("key", "unknown")
+    size   = detail.get("object", {}).get("size", 0)
+    etag   = detail.get("object", {}).get("etag", "")
+
+    record = {
+        "pk":          f"s3://{bucket}/{key}",
+        "ingested_at": datetime.now(timezone.utc).isoformat(),
+        "bucket":      bucket,
+        "key":         key,
+        "size_bytes":  size,
+        "etag":        etag,
+        "event_time":  event.get("time", ""),
+    }
+
+    # Persist to DynamoDB
+    table = dynamodb.Table(TABLE_NAME)
+    table.put_item(Item=record)
+    print(f"[INFO] Wrote record for s3://{bucket}/{key}")
+
+    # Notify via SNS
+    sns.publish(
+        TopicArn=TOPIC_ARN,
+        Subject=f"New S3 object ingested: {key}",
+        Message=json.dumps(record, indent=2),
+    )
+    print(f"[INFO] Published SNS notification for {key}")
+
+    return {"statusCode": 200, "body": "OK"}
+</code></pre>
+<h3>Package the handler</h3>
+<pre><code># Run this locally before terraform apply
+mkdir -p lambda
+# (place handler.py in lambda/)
+cd lambda &amp;&amp; zip ../lambda_function.zip handler.py &amp;&amp; cd ..
+</code></pre>
+<h3>Terraform resource</h3>
+<pre><code># lambda.tf
+
+resource "aws_lambda_function" "process_s3_event" {
+  function_name = "etl-pipeline-process-s3-event-${var.environment}"
+  description   = "Processes S3 Object Created events: writes to DynamoDB and notifies SNS"
+
+  # The deployment package — must exist before terraform apply.
+  filename         = "${path.module}/lambda_function.zip"
+  source_code_hash = filebase64sha256("${path.module}/lambda_function.zip")
+
+  # Runtime and handler reference: filename.function_name
+  runtime = "python3.12"
+  handler = "handler.handler"
+
+  # Execution role — defined in iam.tf
+  role = aws_iam_role.lambda_exec.arn
+
+  # Tune these for your workload; start conservative and adjust.
+  timeout      = 30    # seconds; S3 metadata ops are fast
+  memory_size  = 256   # MB
+
+  # Pass resource identifiers as environment variables — no hardcoding.
+  environment {
+    variables = {
+      DYNAMODB_TABLE = aws_dynamodb_table.s3_events.name
+      SNS_TOPIC_ARN  = aws_sns_topic.ingestion_alerts.arn
+      LOG_LEVEL      = "INFO"
+    }
+  }
+
+  # Ensure the log group exists before Lambda tries to write to it.
+  depends_on = [
+    aws_cloudwatch_log_group.lambda,
+    aws_iam_role_policy_attachment.lambda_permissions
+  ]
+}
+</code></pre>
+<p>
+<strong>Key arguments:</strong> <code>filename</code> + <code>source_code_hash</code>
+    (Terraform redeploys the function only when the ZIP changes),
+    <code>runtime</code>, <code>handler</code>, <code>role</code>, <code>environment</code>.
+  </p>
+<div class="note">
+<p><strong>Best practice:</strong> Use <code>source_code_hash = filebase64sha256(...)</code> so Terraform detects code changes and triggers a redeployment. Without it, changing only the ZIP contents will not cause Terraform to update the function.</p>
+</div>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="dynamodb">DynamoDB Table</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<p>
+    The DynamoDB table stores one item per ingested S3 object. The partition key is the full S3 URI
+    (<code>s3://bucket/key</code>). Using <code>PAY_PER_REQUEST</code> billing mode avoids
+    capacity planning for unpredictable ingestion rates.
+  </p>
+<pre><code># dynamodb.tf
+
+resource "aws_dynamodb_table" "s3_events" {
+  name         = "etl-pipeline-s3-events-${var.environment}"
+  billing_mode = "PAY_PER_REQUEST"   # on-demand; no capacity planning needed
+
+  # Primary key: full S3 URI (e.g., "s3://my-bucket/path/to/file.csv")
+  hash_key = "pk"
+
+  # Only define attributes used as key schema — DynamoDB is schemaless otherwise.
+  attribute {
+    name = "pk"
+    type = "S"   # S = String
+  }
+
+  # Automatically expire old records after 90 days.
+  ttl {
+    attribute_name = "ttl_epoch"
+    enabled        = true
+  }
+
+  # Enable point-in-time recovery for production data protection.
+  point_in_time_recovery {
+    enabled = true
+  }
+}
+</code></pre>
+<p>
+<strong>Key arguments:</strong> <code>billing_mode</code> (<code>PAY_PER_REQUEST</code> or
+    <code>PROVISIONED</code>), <code>hash_key</code>, <code>attribute</code> blocks (only for
+    key attributes), <code>ttl</code>, <code>point_in_time_recovery</code>.
+  </p>
+<div class="warning">
+<p><strong>Common mistake:</strong> Defining <code>attribute</code> blocks for non-key columns causes a perpetual plan diff. Only declare attributes that are used as <code>hash_key</code>, <code>range_key</code>, or GSI/LSI keys.</p>
+</div>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="sns">SNS Topic</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<p>
+    The SNS topic is the notification fan-out point. Subscribers (email, SQS queues, HTTP endpoints,
+    Lambda functions) receive a message for every successfully ingested object. The topic policy
+    restricts publishing to the Lambda execution role only.
+  </p>
+<pre><code># sns.tf
+
+resource "aws_sns_topic" "ingestion_alerts" {
+  name         = "etl-pipeline-ingestion-alerts-${var.environment}"
+  display_name = "ETL Pipeline Ingestion Alerts"
+
+  # Encrypt messages at rest using an AWS-managed key.
+  # For stricter control, use a customer-managed KMS key.
+  kms_master_key_id = "alias/aws/sns"
+}
+
+# Resource-based policy: only the Lambda execution role may publish.
+data "aws_iam_policy_document" "sns_topic_policy" {
+  statement {
+    sid    = "AllowLambdaPublish"
+    effect = "Allow"
+    actions = ["SNS:Publish"]
+
+    principals {
+      type        = "AWS"
+      identifiers = [aws_iam_role.lambda_exec.arn]
+    }
+
+    resources = [aws_sns_topic.ingestion_alerts.arn]
+  }
+}
+
+resource "aws_sns_topic_policy" "ingestion_alerts" {
+  arn    = aws_sns_topic.ingestion_alerts.arn
+  policy = data.aws_iam_policy_document.sns_topic_policy.json
+}
+
+# Example email subscription — replace with a real address.
+resource "aws_sns_topic_subscription" "email_alert" {
+  topic_arn = aws_sns_topic.ingestion_alerts.arn
+  protocol  = "email"
+  endpoint  = "ops-team@example.com"   # must be confirmed via email
+}
+</code></pre>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="eventbridge">EventBridge Rule &amp; Target</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<p>
+    The EventBridge rule filters the stream of S3 events to only <code>Object Created</code> events
+    from the specific input bucket. The <code>event_pattern</code> uses the native EventBridge
+    JSON pattern syntax. The target wires the rule to the Lambda function.
+  </p>
+<pre><code># eventbridge.tf
+
+resource "aws_cloudwatch_event_rule" "s3_object_created" {
+  name        = "etl-pipeline-s3-object-created-${var.environment}"
+  description = "Fires when any object is created in the ETL input bucket"
+
+  # state replaces the deprecated is_enabled argument (provider v6+)
+  state = "ENABLED"
+
+  # Match S3 Object Created events from our specific bucket only.
+  # The "resources" filter prevents this rule from firing for other buckets.
+  event_pattern = jsonencode({
+    source      = ["aws.s3"]
+    detail-type = ["Object Created"]
+    resources   = [aws_s3_bucket.input.arn]
+  })
+}
+
+resource "aws_cloudwatch_event_target" "s3_to_lambda" {
+  rule      = aws_cloudwatch_event_rule.s3_object_created.name
+  target_id = "etl-pipeline-s3-to-lambda"
+  arn       = aws_lambda_function.process_s3_event.arn
+
+  # Optional: configure a dead-letter queue for failed invocations.
+  # dead_letter_config {
+  #   arn = aws_sqs_queue.dlq.arn
+  # }
+
+  # Optional: retry policy (defaults: 24h max age, 185 retries)
+  retry_policy {
+    maximum_event_age_in_seconds = 3600   # retry for up to 1 hour
+    maximum_retry_attempts       = 3
+  }
+}
+</code></pre>
+<p>
+    The reference <code>aws_s3_bucket.input.arn</code> creates an implicit dependency: Terraform
+    will create the S3 bucket before the EventBridge rule. Similarly,
+    <code>aws_lambda_function.process_s3_event.arn</code> ensures Lambda exists before the target.
+  </p>
+<div class="note">
+<p><strong>Best practice:</strong> Always scope the <code>resources</code> field in the event pattern to the specific bucket ARN. Without it, the rule matches S3 events from <em>all</em> buckets in the account, which is almost never the intent and can cause unexpected Lambda invocations.</p>
+</div>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="cloudwatch">CloudWatch Log Group &amp; Alarm</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<p>
+    Lambda automatically creates a log group if one does not exist, but Terraform-managed log groups
+    give you control over retention and encryption. Pre-creating the log group also prevents a race
+    condition where Lambda tries to write logs before the group exists.
+  </p>
+<pre><code># cloudwatch.tf
+
+# Pre-create the log group so retention is enforced from the first invocation.
+resource "aws_cloudwatch_log_group" "lambda" {
+  name              = "/aws/lambda/${aws_lambda_function.process_s3_event.function_name}"
+  retention_in_days = 30   # adjust for compliance requirements
+}
+
+# Alarm: alert when Lambda errors exceed threshold in a 5-minute window.
+resource "aws_cloudwatch_metric_alarm" "lambda_errors" {
+  alarm_name          = "etl-pipeline-lambda-errors-${var.environment}"
+  alarm_description   = "Lambda function error rate exceeded threshold"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  metric_name         = "Errors"
+  namespace           = "AWS/Lambda"
+  period              = 300   # 5 minutes
+  statistic           = "Sum"
+  threshold           = 1     # alert on any error
+
+  dimensions = {
+    FunctionName = aws_lambda_function.process_s3_event.function_name
+  }
+
+  # Notify the ops SNS topic when the alarm fires.
+  alarm_actions             = [aws_sns_topic.ingestion_alerts.arn]
+  ok_actions                = [aws_sns_topic.ingestion_alerts.arn]
+  insufficient_data_actions = []
+
+  treat_missing_data = "notBreaching"   # no data = no alarm
+}
+
+# Alarm: alert on Lambda throttles (concurrency limit reached).
+resource "aws_cloudwatch_metric_alarm" "lambda_throttles" {
+  alarm_name          = "etl-pipeline-lambda-throttles-${var.environment}"
+  alarm_description   = "Lambda function is being throttled"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 2
+  metric_name         = "Throttles"
+  namespace           = "AWS/Lambda"
+  period              = 60
+  statistic           = "Sum"
+  threshold           = 0
+
+  dimensions = {
+    FunctionName = aws_lambda_function.process_s3_event.function_name
+  }
+
+  alarm_actions      = [aws_sns_topic.ingestion_alerts.arn]
+  treat_missing_data = "notBreaching"
+}
+</code></pre>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="wiring">Connecting the Workflow</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<p>
+    The resources above are connected through Terraform attribute references, which create implicit
+    dependencies and ensure correct creation order. Here is a summary of the dependency graph:
+  </p>
+<table>
+<thead>
+<tr><th>Resource</th><th>Depends On</th><th>How</th></tr>
+</thead>
+<tbody>
+<tr><td><code>aws_s3_bucket_notification</code></td><td><code>aws_s3_bucket.input</code></td><td><code>bucket = aws_s3_bucket.input.id</code></td></tr>
+<tr><td><code>aws_cloudwatch_event_rule</code></td><td><code>aws_s3_bucket.input</code></td><td><code>resources = [aws_s3_bucket.input.arn]</code> in event_pattern</td></tr>
+<tr><td><code>aws_cloudwatch_event_target</code></td><td><code>aws_cloudwatch_event_rule</code>, <code>aws_lambda_function</code></td><td><code>rule = ...name</code>, <code>arn = ...arn</code></td></tr>
+<tr><td><code>aws_lambda_permission</code></td><td><code>aws_lambda_function</code>, <code>aws_cloudwatch_event_rule</code></td><td><code>function_name</code>, <code>source_arn</code></td></tr>
+<tr><td><code>aws_lambda_function</code></td><td><code>aws_iam_role</code>, <code>aws_dynamodb_table</code>, <code>aws_sns_topic</code></td><td>env vars + <code>role</code> + <code>depends_on</code></td></tr>
+<tr><td><code>aws_cloudwatch_metric_alarm</code></td><td><code>aws_lambda_function</code>, <code>aws_sns_topic</code></td><td><code>dimensions</code>, <code>alarm_actions</code></td></tr>
+</tbody>
+</table>
+<pre><code># outputs.tf — expose key ARNs for cross-module references or manual testing
+
+output "input_bucket_name" {
+  description = "Name of the S3 input bucket"
+  value       = aws_s3_bucket.input.bucket
+}
+
+output "lambda_function_name" {
+  description = "Name of the processing Lambda function"
+  value       = aws_lambda_function.process_s3_event.function_name
+}
+
+output "dynamodb_table_name" {
+  description = "Name of the DynamoDB metadata table"
+  value       = aws_dynamodb_table.s3_events.name
+}
+
+output "sns_topic_arn" {
+  description = "ARN of the ingestion alerts SNS topic"
+  value       = aws_sns_topic.ingestion_alerts.arn
+}
+</code></pre>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="deploy">Deploying &amp; Testing</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h3>Deploy</h3>
+<pre><code># 1. Package the Lambda handler
+cd lambda &amp;&amp; zip ../lambda_function.zip handler.py &amp;&amp; cd ..
+
+# 2. Initialize the Terraform working directory
+terraform init
+
+# 3. Preview the execution plan — review every resource before applying
+terraform plan -out=tfplan
+
+# 4. Apply the plan
+terraform apply tfplan
+</code></pre>
+<h3>Trigger the pipeline</h3>
+<pre><code># Upload a test file to the S3 bucket (replace with your bucket name from outputs)
+BUCKET=$(terraform output -raw input_bucket_name)
+echo '{"test": true}' | aws s3 cp - s3://${BUCKET}/test/sample.json
+</code></pre>
+<h3>Verify results</h3>
+<pre><code># Check DynamoDB for the ingested record
+TABLE=$(terraform output -raw dynamodb_table_name)
+aws dynamodb scan --table-name ${TABLE} --query "Items[0]"
+
+# Tail Lambda logs in CloudWatch
+FUNCTION=$(terraform output -raw lambda_function_name)
+aws logs tail /aws/lambda/${FUNCTION} --follow
+
+# Check EventBridge rule metrics (invocations, failed invocations)
+aws cloudwatch get-metric-statistics \
+  --namespace AWS/Events \
+  --metric-name TriggeredRules \
+  --dimensions Name=RuleName,Value=etl-pipeline-s3-object-created-dev \
+  --start-time $(date -u -d '1 hour ago' +%Y-%m-%dT%H:%M:%SZ) \
+  --end-time $(date -u +%Y-%m-%dT%H:%M:%SZ) \
+  --period 300 \
+  --statistics Sum
+</code></pre>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="cleanup">Cleanup</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<pre><code># Remove all resources created by this module
+terraform destroy
+</code></pre>
+<div class="warning">
+<p><strong>S3 bucket deletion:</strong> <code>terraform destroy</code> will fail if the S3 bucket contains objects. Empty the bucket first:</p>
+</div>
+<pre><code>BUCKET=$(terraform output -raw input_bucket_name)
+
+# Delete all object versions (required if versioning is enabled)
+aws s3api delete-objects \
+  --bucket ${BUCKET} \
+  --delete "$(aws s3api list-object-versions \
+    --bucket ${BUCKET} \
+    --query '{Objects: Versions[].{Key:Key,VersionId:VersionId}}')"
+
+# Then destroy
+terraform destroy
+</code></pre>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="pitfalls">Common Pitfalls</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="warning">
+<p><strong>Missing <code>aws_lambda_permission</code>:</strong> EventBridge cannot invoke Lambda without a resource-based policy granting <code>lambda:InvokeFunction</code> to <code>events.amazonaws.com</code>. The IAM role policy on Lambda is not sufficient — you need both.</p>
+</div>
+<div class="warning">
+<p><strong>S3 EventBridge not enabled:</strong> If <code>aws_s3_bucket_notification</code> with <code>eventbridge = true</code> is missing, S3 will not emit events to EventBridge and the pipeline will never trigger. Verify with: <code>aws s3api get-bucket-notification-configuration --bucket &lt;name&gt;</code></p>
+</div>
+<ul>
+<li><strong>Event pattern mismatch:</strong> The <code>detail-type</code> must be exactly <code>"Object Created"</code> (with a capital C). Typos silently drop all events.</li>
+<li><strong>Lambda timeout:</strong> The default Lambda timeout is 3 seconds. If your handler does DynamoDB writes and SNS publishes, set <code>timeout</code> to at least 15–30 seconds.</li>
+<li><strong>DynamoDB attribute over-definition:</strong> Only define <code>attribute</code> blocks for key attributes. Defining non-key attributes causes a perpetual plan diff.</li>
+<li><strong>SNS subscription confirmation:</strong> Email subscriptions require manual confirmation. The subscription will remain in <code>PendingConfirmation</code> state until the recipient clicks the confirmation link.</li>
+<li><strong>Log group race condition:</strong> Without <code>depends_on = [aws_cloudwatch_log_group.lambda]</code> in the Lambda resource, Lambda may create the log group without the retention policy you defined.</li>
+<li><strong>Region consistency:</strong> All resources must be in the same region. Cross-region EventBridge routing requires additional configuration not covered here.</li>
+</ul>
+<div class="note">
+<p><strong>Best practice:</strong> Use <code>terraform plan</code> output to verify the dependency graph before every apply. Look for any <code>known after apply</code> values in critical fields like ARNs — these indicate a resource hasn't been created yet and Terraform will resolve them in the correct order.</p>
+</div>
+</div>
+</body>
+</html>

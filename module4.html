@@ -1,0 +1,1250 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Module 4 – Error Monitoring and Alarms with CloudWatch</title>
+<style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0; padding: 2rem 3rem;
+      line-height: 1.7;
+      color: #1f2933;
+      background: #f9fafb;
+    }
+    .page-wrap { max-width: 960px; margin: 0 auto; background: #fff; padding: 2.5rem 3rem; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); }
+    h1 { font-size: 2rem; color: #111827; border-bottom: 3px solid #d97706; padding-bottom: 0.5rem; margin-bottom: 0.5rem; }
+    h2 { font-size: 1.4rem; color: #78350f; margin-top: 2.5rem; border-left: 4px solid #d97706; padding-left: 0.75rem; }
+    h3 { font-size: 1.1rem; color: #1f2933; margin-top: 1.75rem; }
+    .subtitle { color: #4b5563; font-size: 1.05rem; margin-bottom: 2rem; }
+    code { background: #fffbeb; padding: 0.15rem 0.45rem; border-radius: 4px; font-size: 0.9em; color: #78350f; font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; }
+    pre {
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 1.25rem 1.5rem;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 0.875rem;
+      line-height: 1.6;
+      margin: 1rem 0 1.5rem;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    }
+    pre code { background: none; color: inherit; padding: 0; font-size: inherit; }
+    .note {
+      border-left: 4px solid #d97706;
+      background: #fffbeb;
+      padding: 0.75rem 1rem;
+      margin: 1.25rem 0;
+      border-radius: 0 6px 6px 0;
+    }
+    .warning {
+      border-left: 4px solid #b91c1c;
+      background: #fef2f2;
+      padding: 0.75rem 1rem;
+      margin: 1.25rem 0;
+      border-radius: 0 6px 6px 0;
+    }
+    .arch-diagram {
+      background: #0f172a;
+      color: #fcd34d;
+      padding: 1.25rem 1.5rem;
+      border-radius: 6px;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 0.875rem;
+      overflow-x: auto;
+      margin: 1rem 0;
+    }
+    ul, ol { margin-left: 1.5rem; }
+    li { margin-bottom: 0.35rem; }
+    .badge {
+      display: inline-block;
+      background: #fef3c7;
+      color: #92400e;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.15rem 0.6rem;
+      border-radius: 999px;
+      margin-right: 0.4rem;
+      vertical-align: middle;
+    }
+    table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+    th { background: #78350f; color: #fff; padding: 0.5rem 0.75rem; text-align: left; font-size: 0.875rem; }
+    td { padding: 0.5rem 0.75rem; border-bottom: 1px solid #e5e7eb; font-size: 0.875rem; }
+    tr:nth-child(even) td { background: #fffbeb; }
+    .toc { background: #fffbeb; border-radius: 6px; padding: 1rem 1.5rem; margin-bottom: 2rem; }
+    .toc h4 { margin: 0 0 0.5rem; color: #78350f; }
+    .toc ol { margin: 0; }
+    .toc li { margin-bottom: 0.2rem; }
+    .toc a { color: #d97706; text-decoration: none; }
+    .toc a:hover { text-decoration: underline; }
+    .module-nav { display: flex; gap: 1rem; margin-bottom: 2rem; flex-wrap: wrap; }
+    .module-nav span { background: #fef3c7; color: #92400e; padding: 0.3rem 0.8rem; border-radius: 999px; font-size: 0.8rem; font-weight: 600; }
+    .module-nav span.active { background: #92400e; color: #fff; }
+    .alarm-card {
+      border: 1px solid #fde68a;
+      border-radius: 6px;
+      padding: 1rem 1.25rem;
+      margin: 1rem 0;
+      background: #fffdf0;
+    }
+    .alarm-card h4 { margin: 0 0 0.4rem; color: #78350f; font-size: 1rem; }
+    .alarm-card p { margin: 0; font-size: 0.9rem; color: #374151; }
+    .metric-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin: 1rem 0;
+    }
+    @media (max-width: 640px) { .metric-grid { grid-template-columns: 1fr; } }
+    .metric-card {
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      padding: 0.75rem 1rem;
+      background: #f9fafb;
+    }
+    .metric-card .metric-name { font-weight: 700; color: #1f2933; font-size: 0.9rem; }
+    .metric-card .metric-ns { font-size: 0.78rem; color: #6b7280; margin-bottom: 0.25rem; }
+    .metric-card .metric-desc { font-size: 0.85rem; color: #374151; }
+  </style>
+</head>
+<body>
+<div class="page-wrap">
+<div class="module-nav">
+<span>Module 1 – Event-Driven Pipeline</span>
+<span>Module 2 – Step Functions</span>
+<span>Module 3 – Scheduled Processing</span>
+<span class="active">Module 4 – Observability</span>
+</div>
+<h1>Module 4 – Error Monitoring and Alarms with CloudWatch</h1>
+<p class="subtitle">
+<span class="badge">CloudWatch Logs</span>
+<span class="badge">CloudWatch Alarms</span>
+<span class="badge">CloudWatch Log Metric Filters</span>
+<span class="badge">SNS</span>
+<span class="badge">Lambda</span>
+<span class="badge">Step Functions</span>
+<span class="badge">IAM</span>
+</p>
+<p>
+    This module is a deep dive into observability for the serverless workflows built in Modules 1–3.
+    It covers the full CloudWatch stack: structured log groups with retention policies, metric alarms
+    on AWS-native metrics (Lambda, Step Functions, DynamoDB), custom metric filters that extract
+    signal from Lambda log output, composite alarms that reduce alert noise, and SNS as the
+    notification backbone. By the end of this module you will have a production-grade alerting
+    layer that catches errors, throttles, latency spikes, and silent failures — and routes them
+    to the right responders.
+  </p>
+<div class="toc">
+<h4>Contents</h4>
+<ol>
+<li><a href="#arch">Observability Architecture</a></li>
+<li><a href="#prereqs">Prerequisites</a></li>
+<li><a href="#sns">SNS Notification Channels</a></li>
+<li><a href="#log-groups">CloudWatch Log Groups</a></li>
+<li><a href="#metric-filters">Log Metric Filters</a></li>
+<li><a href="#lambda-alarms">Lambda Alarms</a></li>
+<li><a href="#sfn-alarms">Step Functions Alarms</a></li>
+<li><a href="#dynamodb-alarms">DynamoDB Alarms</a></li>
+<li><a href="#composite-alarms">Composite Alarms</a></li>
+<li><a href="#dashboard">CloudWatch Dashboard</a></li>
+<li><a href="#wiring">Wiring Everything Together</a></li>
+<li><a href="#deploy">Deploying &amp; Testing Alarms</a></li>
+<li><a href="#runbook">Operational Runbook Guidance</a></li>
+<li><a href="#cleanup">Cleanup</a></li>
+<li><a href="#pitfalls">Common Pitfalls</a></li>
+</ol>
+</div>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="arch">Observability Architecture</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<p>
+    The observability layer sits alongside the application resources — it does not modify them.
+    CloudWatch collects metrics from Lambda, Step Functions, and DynamoDB automatically. Log
+    metric filters extract custom signals from Lambda log output. Alarms evaluate metric data
+    against thresholds and transition between <code>OK</code>, <code>ALARM</code>, and
+    <code>INSUFFICIENT_DATA</code> states. Composite alarms combine multiple child alarms to
+    reduce noise. All alarm state changes route to SNS topics, which fan out to email, PagerDuty,
+    Slack, or any HTTP endpoint.
+  </p>
+<div class="arch-diagram">
+<pre>
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                          CloudWatch Observability Layer                       │
+│                                                                              │
+│  ┌─────────────────────────────────────────────────────────────────────┐     │
+│  │  AWS Service Metrics (auto-collected, no agent needed)              │     │
+│  │                                                                     │     │
+│  │  AWS/Lambda          AWS/States           AWS/DynamoDB              │     │
+│  │  ├─ Errors           ├─ ExecutionsFailed  ├─ SystemErrors           │     │
+│  │  ├─ Throttles        ├─ ExecutionThrottled├─ UserErrors             │     │
+│  │  ├─ Duration         ├─ ExecutionsTimedOut├─ ThrottledRequests      │     │
+│  │  └─ Invocations      └─ ExecutionsStarted └─ ConsumedWriteCapacity  │     │
+│  └──────────────────────────────┬──────────────────────────────────────┘     │
+│                                 │                                            │
+│  ┌──────────────────────────────▼──────────────────────────────────────┐     │
+│  │  CloudWatch Log Groups                                              │     │
+│  │  /aws/lambda/process-s3-event   /aws/lambda/batch-processor         │     │
+│  │  /aws/states/order-proc-workflow                                    │     │
+│  │         │                                                           │     │
+│  │         │  Log Metric Filters                                       │     │
+│  │         ├─ [ERROR] occurrences  → custom metric: AppErrors          │     │
+│  │         └─ [WARN] occurrences   → custom metric: AppWarnings        │     │
+│  └──────────────────────────────┬──────────────────────────────────────┘     │
+│                                 │                                            │
+│  ┌──────────────────────────────▼──────────────────────────────────────┐     │
+│  │  CloudWatch Metric Alarms                                           │     │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐              │     │
+│  │  │ Lambda Errors│  │ SFN Failures │  │ DynamoDB     │              │     │
+│  │  │ Alarm        │  │ Alarm        │  │ Throttles    │              │     │
+│  │  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘              │     │
+│  │         └─────────────────┼─────────────────┘                      │     │
+│  │                           │                                         │     │
+│  │  ┌────────────────────────▼────────────────────────┐               │     │
+│  │  │  Composite Alarm: "Pipeline Health"             │               │     │
+│  │  │  ALARM if ANY child alarm is in ALARM state     │               │     │
+│  │  └────────────────────────┬────────────────────────┘               │     │
+│  └───────────────────────────┼─────────────────────────────────────────┘     │
+│                              │ alarm_actions                                 │
+│                              ▼                                               │
+│  ┌───────────────────────────────────────────────────────────────────────┐   │
+│  │  SNS Topics                                                           │   │
+│  │  ┌─────────────────────┐    ┌──────────────────────────────────────┐ │   │
+│  │  │ ops-critical        │    │ ops-warning                          │ │   │
+│  │  │ (PagerDuty / email) │    │ (Slack / email)                      │ │   │
+│  │  └─────────────────────┘    └──────────────────────────────────────┘ │   │
+│  └───────────────────────────────────────────────────────────────────────┘   │
+└──────────────────────────────────────────────────────────────────────────────┘
+</pre>
+</div>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="prereqs">Prerequisites</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<p>
+    This module assumes the application resources from Modules 1–3 already exist (or equivalent
+    Lambda functions, Step Functions state machines, and DynamoDB tables). The observability
+    resources reference those application resources by name/ARN via Terraform data sources or
+    variables. You can apply this module independently by providing the resource names as variables.
+  </p>
+<pre><code># versions.tf
+terraform {
+  required_version = "&gt;= 1.5"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~&gt; 6.0"
+    }
+  }
+}
+
+provider "aws" {
+  region = var.aws_region
+
+  default_tags {
+    tags = {
+      Project     = "observability"
+      Environment = var.environment
+      ManagedBy   = "terraform"
+    }
+  }
+}
+
+variable "aws_region"  { default = "us-east-1" }
+variable "environment" { default = "dev" }
+
+# Names of application resources to monitor — passed in from the application stack
+# or looked up via data sources.
+variable "lambda_function_names" {
+  description = "List of Lambda function names to monitor"
+  type        = list(string)
+  default     = [
+    "etl-pipeline-process-s3-event-dev",
+    "batch-proc-processor-dev",
+    "order-proc-dispatcher-dev",
+    "order-proc-write-record-dev",
+    "order-proc-send-notify-dev"
+  ]
+}
+
+variable "sfn_state_machine_name" {
+  description = "Step Functions state machine name to monitor"
+  default     = "order-proc-workflow-dev"
+}
+
+variable "dynamodb_table_names" {
+  description = "List of DynamoDB table names to monitor"
+  type        = list(string)
+  default     = [
+    "etl-pipeline-s3-events-dev",
+    "order-proc-orders-dev",
+    "batch-proc-job-results-dev"
+  ]
+}
+
+variable "ops_email" {
+  description = "Email address for operational alerts"
+  default     = "ops-team@example.com"
+}
+
+# Look up the Step Functions state machine ARN from its name.
+data "aws_sfn_state_machine" "monitored" {
+  name = var.sfn_state_machine_name
+}
+</code></pre>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="sns">SNS Notification Channels</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<p>
+    Separate SNS topics for critical and warning alerts allow different routing rules. Critical
+    alerts (Lambda errors, SFN failures) go to PagerDuty or on-call rotation. Warning alerts
+    (throttles, high latency) go to a Slack channel or email digest. Both topics allow
+    CloudWatch to publish alarm state changes.
+  </p>
+<pre><code># sns.tf
+
+# ── Critical alerts topic ──────────────────────────────────────────────
+# For alarms that require immediate human response.
+resource "aws_sns_topic" "ops_critical" {
+  name              = "observability-ops-critical-${var.environment}"
+  display_name      = "OPS CRITICAL Alerts"
+  kms_master_key_id = "alias/aws/sns"
+}
+
+# ── Warning alerts topic ───────────────────────────────────────────────
+# For alarms that need attention but are not immediately service-impacting.
+resource "aws_sns_topic" "ops_warning" {
+  name              = "observability-ops-warning-${var.environment}"
+  display_name      = "OPS Warning Alerts"
+  kms_master_key_id = "alias/aws/sns"
+}
+
+# Allow CloudWatch to publish to both topics.
+data "aws_iam_policy_document" "allow_cloudwatch_publish" {
+  statement {
+    sid     = "AllowCloudWatchAlarms"
+    effect  = "Allow"
+    actions = ["SNS:Publish"]
+    principals {
+      type        = "Service"
+      identifiers = ["cloudwatch.amazonaws.com"]
+    }
+    # Restrict to alarms in this account only.
+    resources = [
+      aws_sns_topic.ops_critical.arn,
+      aws_sns_topic.ops_warning.arn
+    ]
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
+  }
+}
+
+resource "aws_sns_topic_policy" "ops_critical" {
+  arn    = aws_sns_topic.ops_critical.arn
+  policy = data.aws_iam_policy_document.allow_cloudwatch_publish.json
+}
+
+resource "aws_sns_topic_policy" "ops_warning" {
+  arn    = aws_sns_topic.ops_warning.arn
+  policy = data.aws_iam_policy_document.allow_cloudwatch_publish.json
+}
+
+# Email subscriptions — must be confirmed by the recipient.
+resource "aws_sns_topic_subscription" "critical_email" {
+  topic_arn = aws_sns_topic.ops_critical.arn
+  protocol  = "email"
+  endpoint  = var.ops_email
+}
+
+resource "aws_sns_topic_subscription" "warning_email" {
+  topic_arn = aws_sns_topic.ops_warning.arn
+  protocol  = "email"
+  endpoint  = var.ops_email
+}
+
+data "aws_caller_identity" "current" {}
+</code></pre>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="log-groups">CloudWatch Log Groups</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<p>
+    Terraform-managed log groups enforce retention policies and encryption. Without explicit
+    management, Lambda creates log groups with infinite retention — a compliance and cost risk.
+    Use <code>for_each</code> to manage log groups for all Lambda functions from a single
+    resource block.
+  </p>
+<pre><code># log_groups.tf
+
+# Manage log groups for all monitored Lambda functions.
+# for_each creates one aws_cloudwatch_log_group per function name.
+resource "aws_cloudwatch_log_group" "lambda_functions" {
+  for_each = toset(var.lambda_function_names)
+
+  name              = "/aws/lambda/${each.value}"
+  retention_in_days = 30
+
+  # Prevent Terraform from failing if Lambda already created the group.
+  lifecycle {
+    ignore_changes = [tags]
+  }
+}
+
+# Log group for the Step Functions state machine.
+resource "aws_cloudwatch_log_group" "sfn_state_machine" {
+  name              = "/aws/states/${var.sfn_state_machine_name}"
+  retention_in_days = 30
+}
+
+# ── Log Insights query examples ────────────────────────────────────────
+# These are not Terraform resources, but save them as saved queries
+# using aws_cloudwatch_query_definition.
+
+resource "aws_cloudwatch_query_definition" "lambda_errors" {
+  name = "observability/lambda-errors-last-hour"
+
+  # Apply to all Lambda log groups.
+  log_group_names = [
+    for name in var.lambda_function_names : "/aws/lambda/${name}"
+  ]
+
+  query_string = &lt;&lt;-EOT
+    fields @timestamp, @message, @logStream
+    | filter @message like /\[ERROR\]/
+    | sort @timestamp desc
+    | limit 50
+  EOT
+}
+
+resource "aws_cloudwatch_query_definition" "sfn_failed_executions" {
+  name = "observability/sfn-failed-executions"
+
+  log_group_names = [aws_cloudwatch_log_group.sfn_state_machine.name]
+
+  query_string = &lt;&lt;-EOT
+    fields @timestamp, type, details.error, details.cause
+    | filter type = "ExecutionFailed"
+    | sort @timestamp desc
+    | limit 20
+  EOT
+}
+</code></pre>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="metric-filters">Log Metric Filters</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<p>
+    Log metric filters scan incoming log events for a pattern and increment a custom CloudWatch
+    metric when a match is found. This lets you alarm on application-level signals (e.g.,
+    <code>[ERROR]</code> log lines) that are not captured by AWS service metrics. The metric
+    is created automatically when the filter is applied — no separate metric resource is needed.
+  </p>
+<pre><code># metric_filters.tf
+
+# ── Application error metric filter ───────────────────────────────────
+# Counts log lines containing "[ERROR]" across all Lambda functions.
+# Creates a custom metric in the "ETLPipeline" namespace.
+resource "aws_cloudwatch_log_metric_filter" "app_errors" {
+  for_each = toset(var.lambda_function_names)
+
+  name           = "app-errors-${each.value}"
+  log_group_name = "/aws/lambda/${each.value}"
+
+  # Pattern: match any log line containing the literal string [ERROR].
+  # CloudWatch filter patterns are NOT regex — use literal strings or
+  # JSON field matching for structured logs.
+  pattern = "[ERROR]"
+
+  metric_transformation {
+    name          = "ApplicationErrors"
+    namespace     = "ETLPipeline/Lambda"
+    value         = "1"          # increment by 1 for each matching log line
+    default_value = "0"          # emit 0 when no matches (enables "no data" detection)
+    unit          = "Count"
+  }
+
+  depends_on = [aws_cloudwatch_log_group.lambda_functions]
+}
+
+# ── Application warning metric filter ─────────────────────────────────
+resource "aws_cloudwatch_log_metric_filter" "app_warnings" {
+  for_each = toset(var.lambda_function_names)
+
+  name           = "app-warnings-${each.value}"
+  log_group_name = "/aws/lambda/${each.value}"
+  pattern        = "[WARN]"
+
+  metric_transformation {
+    name          = "ApplicationWarnings"
+    namespace     = "ETLPipeline/Lambda"
+    value         = "1"
+    default_value = "0"
+    unit          = "Count"
+  }
+
+  depends_on = [aws_cloudwatch_log_group.lambda_functions]
+}
+
+# ── Structured JSON log filter ─────────────────────────────────────────
+# If your Lambda emits structured JSON logs (e.g., via aws-lambda-powertools),
+# you can filter on specific JSON fields.
+# Example: match logs where "level" = "ERROR" in JSON output.
+resource "aws_cloudwatch_log_metric_filter" "structured_errors" {
+  for_each = toset(var.lambda_function_names)
+
+  name           = "structured-errors-${each.value}"
+  log_group_name = "/aws/lambda/${each.value}"
+
+  # JSON filter pattern: matches log events where the "level" field equals "ERROR".
+  # The { } syntax enables JSON field matching in CloudWatch filter patterns.
+  pattern = "{ $.level = \"ERROR\" }"
+
+  metric_transformation {
+    name          = "StructuredErrors"
+    namespace     = "ETLPipeline/Lambda"
+    value         = "1"
+    default_value = "0"
+    unit          = "Count"
+  }
+
+  depends_on = [aws_cloudwatch_log_group.lambda_functions]
+}
+</code></pre>
+<div class="note">
+<p><strong>CloudWatch filter pattern syntax:</strong> CloudWatch uses its own pattern language — not regex. Key patterns: <code>[ERROR]</code> matches the literal string; <code>{ $.field = "value" }</code> matches JSON fields; <code>?ERROR ?WARN</code> matches lines containing either word. See the <a href="https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/FilterAndPatternSyntax.html" style="color:#d97706;">CloudWatch filter pattern syntax docs</a> for the full reference.</p>
+</div>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="lambda-alarms">Lambda Alarms</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<p>
+    The following alarms cover the most important Lambda operational signals. Each alarm is
+    defined per function using <code>for_each</code> to avoid repetition.
+  </p>
+<div class="metric-grid">
+<div class="metric-card">
+<div class="metric-ns">AWS/Lambda</div>
+<div class="metric-name">Errors</div>
+<div class="metric-desc">Count of invocations that resulted in a function error (exception, timeout, or OOM). Any non-zero value in a 5-minute window is critical.</div>
+</div>
+<div class="metric-card">
+<div class="metric-ns">AWS/Lambda</div>
+<div class="metric-name">Throttles</div>
+<div class="metric-desc">Count of invocations rejected due to concurrency limits. Indicates the function needs reserved concurrency or the account limit needs raising.</div>
+</div>
+<div class="metric-card">
+<div class="metric-ns">AWS/Lambda</div>
+<div class="metric-name">Duration</div>
+<div class="metric-desc">Execution time in milliseconds. Alarm on p99 or Maximum approaching the configured timeout to catch runaway executions before they fail.</div>
+</div>
+<div class="metric-card">
+<div class="metric-ns">AWS/Lambda</div>
+<div class="metric-name">ConcurrentExecutions</div>
+<div class="metric-desc">Number of function instances running simultaneously. Alarm when approaching the account or function-level concurrency limit.</div>
+</div>
+</div>
+<pre><code># lambda_alarms.tf
+
+# ── Lambda Errors alarm (per function) ────────────────────────────────
+resource "aws_cloudwatch_metric_alarm" "lambda_errors" {
+  for_each = toset(var.lambda_function_names)
+
+  alarm_name          = "lambda-errors-${each.value}"
+  alarm_description   = "Lambda function ${each.value} returned one or more errors"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  metric_name         = "Errors"
+  namespace           = "AWS/Lambda"
+  period              = 300   # 5-minute evaluation window
+  statistic           = "Sum"
+  threshold           = 1     # alert on any single error
+
+  dimensions = {
+    FunctionName = each.value
+  }
+
+  # Route to critical topic — Lambda errors are service-impacting.
+  alarm_actions             = [aws_sns_topic.ops_critical.arn]
+  ok_actions                = [aws_sns_topic.ops_critical.arn]
+  insufficient_data_actions = []
+  treat_missing_data        = "notBreaching"
+}
+
+# ── Lambda Throttles alarm (per function) ─────────────────────────────
+resource "aws_cloudwatch_metric_alarm" "lambda_throttles" {
+  for_each = toset(var.lambda_function_names)
+
+  alarm_name          = "lambda-throttles-${each.value}"
+  alarm_description   = "Lambda function ${each.value} is being throttled"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 2    # require 2 consecutive periods to reduce noise
+  metric_name         = "Throttles"
+  namespace           = "AWS/Lambda"
+  period              = 60
+  statistic           = "Sum"
+  threshold           = 0
+
+  dimensions = {
+    FunctionName = each.value
+  }
+
+  # Throttles are a warning — they degrade performance but don't lose data
+  # (EventBridge and SFN retry throttled invocations).
+  alarm_actions      = [aws_sns_topic.ops_warning.arn]
+  ok_actions         = [aws_sns_topic.ops_warning.arn]
+  treat_missing_data = "notBreaching"
+}
+
+# ── Lambda Duration alarm (per function) ──────────────────────────────
+# Alarms when the maximum execution duration in a period exceeds 80% of timeout.
+# Requires knowing the timeout per function — use a map variable for production.
+resource "aws_cloudwatch_metric_alarm" "lambda_duration" {
+  for_each = toset(var.lambda_function_names)
+
+  alarm_name          = "lambda-duration-${each.value}"
+  alarm_description   = "Lambda function ${each.value} duration is approaching timeout"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "Duration"
+  namespace           = "AWS/Lambda"
+  period              = 300
+  # Use Maximum to catch the worst-case invocation in the period.
+  # Use p99 (extended statistics) for a more representative view.
+  extended_statistic  = "p99"
+  # Threshold: 24,000 ms = 24 seconds (80% of a 30-second timeout).
+  # Adjust per function based on its configured timeout.
+  threshold           = 24000
+  unit                = "Milliseconds"
+
+  dimensions = {
+    FunctionName = each.value
+  }
+
+  alarm_actions      = [aws_sns_topic.ops_warning.arn]
+  treat_missing_data = "notBreaching"
+}
+
+# ── Custom application error alarm (from log metric filter) ───────────
+# Alarms on the custom "ApplicationErrors" metric extracted from logs.
+# This catches application-level errors that don't cause Lambda to fail
+# (e.g., a caught exception that logs [ERROR] but returns HTTP 200).
+resource "aws_cloudwatch_metric_alarm" "app_errors" {
+  for_each = toset(var.lambda_function_names)
+
+  alarm_name          = "app-errors-${each.value}"
+  alarm_description   = "Application-level [ERROR] log lines detected in ${each.value}"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  metric_name         = "ApplicationErrors"
+  namespace           = "ETLPipeline/Lambda"
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 5   # tolerate up to 4 errors per 5 minutes before alerting
+
+  # No dimensions — the metric filter emits to the namespace without dimensions.
+  # In production, add a "FunctionName" dimension to the metric_transformation
+  # and filter here.
+
+  alarm_actions      = [aws_sns_topic.ops_warning.arn]
+  treat_missing_data = "notBreaching"
+
+  depends_on = [aws_cloudwatch_log_metric_filter.app_errors]
+}
+</code></pre>
+<div class="note">
+<p><strong>Extended statistics (p99):</strong> The <code>extended_statistic</code> argument accepts percentile statistics like <code>"p99"</code>, <code>"p95"</code>, <code>"p50"</code>. Use these for latency alarms instead of <code>Average</code> — averages hide tail latency that affects a small but significant percentage of users. Note: <code>statistic</code> and <code>extended_statistic</code> are mutually exclusive.</p>
+</div>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="sfn-alarms">Step Functions Alarms</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<p>
+    Step Functions emits metrics to the <code>AWS/States</code> namespace. The most important
+    metrics for production monitoring are execution failures, timeouts, and throttles.
+  </p>
+<div class="metric-grid">
+<div class="metric-card">
+<div class="metric-ns">AWS/States</div>
+<div class="metric-name">ExecutionsFailed</div>
+<div class="metric-desc">Executions that reached a <code>Fail</code> state or encountered an unhandled error. Any failure is critical for order/payment workflows.</div>
+</div>
+<div class="metric-card">
+<div class="metric-ns">AWS/States</div>
+<div class="metric-name">ExecutionsTimedOut</div>
+<div class="metric-desc">Executions that exceeded the state machine's maximum duration. Indicates a stuck state or an infinite wait.</div>
+</div>
+<div class="metric-card">
+<div class="metric-ns">AWS/States</div>
+<div class="metric-name">ExecutionThrottled</div>
+<div class="metric-desc">Executions rejected due to account-level or state machine concurrency limits.</div>
+</div>
+<div class="metric-card">
+<div class="metric-ns">AWS/States</div>
+<div class="metric-name">ExecutionTime</div>
+<div class="metric-desc">Duration of completed executions in milliseconds. Alarm on p99 to detect slow workflows before they impact SLAs.</div>
+</div>
+</div>
+<pre><code># sfn_alarms.tf
+
+# ── SFN Execution Failures ─────────────────────────────────────────────
+resource "aws_cloudwatch_metric_alarm" "sfn_failures" {
+  alarm_name          = "sfn-execution-failures-${var.environment}"
+  alarm_description   = "One or more Step Functions executions have failed"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  metric_name         = "ExecutionsFailed"
+  namespace           = "AWS/States"
+  period              = 60
+  statistic           = "Sum"
+  threshold           = 1
+
+  dimensions = {
+    StateMachineArn = data.aws_sfn_state_machine.monitored.arn
+  }
+
+  alarm_actions      = [aws_sns_topic.ops_critical.arn]
+  ok_actions         = [aws_sns_topic.ops_critical.arn]
+  treat_missing_data = "notBreaching"
+}
+
+# ── SFN Execution Timeouts ─────────────────────────────────────────────
+resource "aws_cloudwatch_metric_alarm" "sfn_timeouts" {
+  alarm_name          = "sfn-execution-timeouts-${var.environment}"
+  alarm_description   = "One or more Step Functions executions have timed out"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  metric_name         = "ExecutionsTimedOut"
+  namespace           = "AWS/States"
+  period              = 60
+  statistic           = "Sum"
+  threshold           = 1
+
+  dimensions = {
+    StateMachineArn = data.aws_sfn_state_machine.monitored.arn
+  }
+
+  alarm_actions      = [aws_sns_topic.ops_critical.arn]
+  treat_missing_data = "notBreaching"
+}
+
+# ── SFN Throttles ──────────────────────────────────────────────────────
+resource "aws_cloudwatch_metric_alarm" "sfn_throttles" {
+  alarm_name          = "sfn-execution-throttles-${var.environment}"
+  alarm_description   = "Step Functions executions are being throttled"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 2
+  metric_name         = "ExecutionThrottled"
+  namespace           = "AWS/States"
+  period              = 60
+  statistic           = "Sum"
+  threshold           = 0
+
+  dimensions = {
+    StateMachineArn = data.aws_sfn_state_machine.monitored.arn
+  }
+
+  alarm_actions      = [aws_sns_topic.ops_warning.arn]
+  treat_missing_data = "notBreaching"
+}
+
+# ── SFN Execution Duration (p99) ───────────────────────────────────────
+# Alarms when p99 execution time exceeds 60 seconds.
+# Adjust threshold based on your workflow's expected duration.
+resource "aws_cloudwatch_metric_alarm" "sfn_duration" {
+  alarm_name          = "sfn-execution-duration-p99-${var.environment}"
+  alarm_description   = "Step Functions p99 execution duration is elevated"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 2
+  metric_name         = "ExecutionTime"
+  namespace           = "AWS/States"
+  period              = 300
+  extended_statistic  = "p99"
+  threshold           = 60000   # 60,000 ms = 60 seconds
+  unit                = "Milliseconds"
+
+  dimensions = {
+    StateMachineArn = data.aws_sfn_state_machine.monitored.arn
+  }
+
+  alarm_actions      = [aws_sns_topic.ops_warning.arn]
+  treat_missing_data = "notBreaching"
+}
+</code></pre>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="dynamodb-alarms">DynamoDB Alarms</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<p>
+    DynamoDB emits metrics to <code>AWS/DynamoDB</code>. For <code>PAY_PER_REQUEST</code> tables,
+    the most important signals are <code>SystemErrors</code> (DynamoDB-side failures) and
+    <code>UserErrors</code> (client-side errors like invalid requests). For
+    <code>PROVISIONED</code> tables, also alarm on <code>ConsumedReadCapacityUnits</code> and
+    <code>ConsumedWriteCapacityUnits</code> approaching provisioned limits.
+  </p>
+<pre><code># dynamodb_alarms.tf
+
+# ── DynamoDB System Errors (per table) ────────────────────────────────
+# SystemErrors indicate DynamoDB-side failures (HTTP 5xx). These are rare
+# but critical — they indicate a DynamoDB service issue.
+resource "aws_cloudwatch_metric_alarm" "dynamodb_system_errors" {
+  for_each = toset(var.dynamodb_table_names)
+
+  alarm_name          = "dynamodb-system-errors-${each.value}"
+  alarm_description   = "DynamoDB table ${each.value} is returning system errors (5xx)"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "SystemErrors"
+  namespace           = "AWS/DynamoDB"
+  period              = 60
+  statistic           = "Sum"
+  threshold           = 0
+
+  dimensions = {
+    TableName = each.value
+  }
+
+  alarm_actions      = [aws_sns_topic.ops_critical.arn]
+  treat_missing_data = "notBreaching"
+}
+
+# ── DynamoDB User Errors (per table) ──────────────────────────────────
+# UserErrors indicate client-side errors (HTTP 4xx): invalid requests,
+# condition check failures, or access denied. A spike may indicate a bug.
+resource "aws_cloudwatch_metric_alarm" "dynamodb_user_errors" {
+  for_each = toset(var.dynamodb_table_names)
+
+  alarm_name          = "dynamodb-user-errors-${each.value}"
+  alarm_description   = "DynamoDB table ${each.value} is returning elevated user errors (4xx)"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 2
+  metric_name         = "UserErrors"
+  namespace           = "AWS/DynamoDB"
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 10   # tolerate occasional condition check failures
+
+  dimensions = {
+    TableName = each.value
+  }
+
+  alarm_actions      = [aws_sns_topic.ops_warning.arn]
+  treat_missing_data = "notBreaching"
+}
+
+# ── DynamoDB Throttled Requests (per table) ────────────────────────────
+# For PAY_PER_REQUEST tables, throttles indicate burst limits being hit.
+# For PROVISIONED tables, they indicate under-provisioning.
+resource "aws_cloudwatch_metric_alarm" "dynamodb_throttles" {
+  for_each = toset(var.dynamodb_table_names)
+
+  alarm_name          = "dynamodb-throttles-${each.value}"
+  alarm_description   = "DynamoDB table ${each.value} is throttling requests"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 2
+  metric_name         = "ThrottledRequests"
+  namespace           = "AWS/DynamoDB"
+  period              = 60
+  statistic           = "Sum"
+  threshold           = 0
+
+  dimensions = {
+    TableName = each.value
+  }
+
+  alarm_actions      = [aws_sns_topic.ops_warning.arn]
+  treat_missing_data = "notBreaching"
+}
+
+# ── DynamoDB Successful Request Latency ───────────────────────────────
+# Alarms when p99 write latency exceeds 50ms — a sign of hot partitions
+# or DynamoDB service degradation.
+resource "aws_cloudwatch_metric_alarm" "dynamodb_write_latency" {
+  for_each = toset(var.dynamodb_table_names)
+
+  alarm_name          = "dynamodb-write-latency-${each.value}"
+  alarm_description   = "DynamoDB table ${each.value} p99 write latency is elevated"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 3
+  metric_name         = "SuccessfulRequestLatency"
+  namespace           = "AWS/DynamoDB"
+  period              = 60
+  extended_statistic  = "p99"
+  threshold           = 50   # 50 ms p99 write latency threshold
+  unit                = "Milliseconds"
+
+  dimensions = {
+    TableName  = each.value
+    Operation  = "PutItem"
+  }
+
+  alarm_actions      = [aws_sns_topic.ops_warning.arn]
+  treat_missing_data = "notBreaching"
+}
+</code></pre>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="composite-alarms">Composite Alarms</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<p>
+    Composite alarms combine multiple child alarms using boolean logic (<code>AND</code>,
+    <code>OR</code>, <code>NOT</code>). They are the primary tool for reducing alert noise:
+    instead of receiving 10 individual alarm notifications when a single root cause fires
+    multiple alarms, you receive one composite alarm notification. Composite alarms do not
+    evaluate metrics directly — they evaluate the states of other alarms.
+  </p>
+<div class="alarm-card">
+<h4>Composite Alarm Design Pattern</h4>
+<p>
+      Define fine-grained child alarms for each metric/function. Then define a composite alarm
+      that fires when <em>any</em> critical child alarm is in ALARM state. Route only the
+      composite alarm to PagerDuty — route individual child alarms to a lower-priority channel
+      for context.
+    </p>
+</div>
+<pre><code># composite_alarms.tf
+
+# ── Pipeline Health composite alarm ───────────────────────────────────
+# Fires when ANY of the critical child alarms is in ALARM state.
+# This is the single alarm to wire into PagerDuty or on-call rotation.
+resource "aws_cloudwatch_composite_alarm" "pipeline_health" {
+  alarm_name        = "pipeline-health-${var.environment}"
+  alarm_description = "Overall pipeline health — fires when any critical alarm is active"
+
+  # alarm_rule uses a boolean expression over child alarm names.
+  # ALARM("alarm-name") evaluates to true when that alarm is in ALARM state.
+  alarm_rule = join(" OR ", concat(
+    # Lambda error alarms for all monitored functions.
+    [for name in var.lambda_function_names :
+      "ALARM(\"lambda-errors-${name}\")"],
+    # Step Functions failure and timeout alarms.
+    [
+      "ALARM(\"sfn-execution-failures-${var.environment}\")",
+      "ALARM(\"sfn-execution-timeouts-${var.environment}\")"
+    ],
+    # DynamoDB system error alarms for all monitored tables.
+    [for name in var.dynamodb_table_names :
+      "ALARM(\"dynamodb-system-errors-${name}\")"]
+  ))
+
+  # The composite alarm itself routes to the critical SNS topic.
+  alarm_actions = [aws_sns_topic.ops_critical.arn]
+  ok_actions    = [aws_sns_topic.ops_critical.arn]
+
+  # Suppress individual child alarm actions when the composite is in ALARM.
+  # This prevents duplicate notifications from both child and composite alarms.
+  actions_suppressor                           = null
+  actions_suppressor_wait_period               = null
+  actions_suppressor_extension_period          = null
+}
+
+# ── Warning composite alarm ────────────────────────────────────────────
+# Fires when any warning-level alarm is active.
+resource "aws_cloudwatch_composite_alarm" "pipeline_warnings" {
+  alarm_name        = "pipeline-warnings-${var.environment}"
+  alarm_description = "Pipeline warnings — performance degradation detected"
+
+  alarm_rule = join(" OR ", concat(
+    [for name in var.lambda_function_names :
+      "ALARM(\"lambda-throttles-${name}\")"],
+    [for name in var.lambda_function_names :
+      "ALARM(\"lambda-duration-${name}\")"],
+    [
+      "ALARM(\"sfn-execution-throttles-${var.environment}\")",
+      "ALARM(\"sfn-execution-duration-p99-${var.environment}\")"
+    ],
+    [for name in var.dynamodb_table_names :
+      "ALARM(\"dynamodb-throttles-${name}\")"]
+  ))
+
+  alarm_actions = [aws_sns_topic.ops_warning.arn]
+  ok_actions    = [aws_sns_topic.ops_warning.arn]
+}
+</code></pre>
+<div class="note">
+<p><strong>Composite alarm billing:</strong> Composite alarms are billed per alarm per month, the same as standard alarms. However, they do not evaluate metrics themselves — they only evaluate child alarm states. This means they do not incur metric evaluation costs. Use them freely to reduce operational noise.</p>
+</div>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="dashboard">CloudWatch Dashboard</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<p>
+    A CloudWatch dashboard provides a single-pane-of-glass view of the pipeline's health.
+    The <code>aws_cloudwatch_dashboard</code> resource accepts a JSON body defining widgets.
+    The dashboard body is a JSON string — use <code>jsonencode()</code> to avoid escaping issues.
+  </p>
+<pre><code># dashboard.tf
+
+resource "aws_cloudwatch_dashboard" "pipeline_overview" {
+  dashboard_name = "etl-pipeline-overview-${var.environment}"
+
+  # The dashboard body is a JSON document defining widgets and their layout.
+  # Each widget has a type, position (x, y), size (width, height), and properties.
+  dashboard_body = jsonencode({
+    widgets = [
+      # ── Row 1: Lambda Errors and Throttles ──────────────────────────
+      {
+        type   = "metric"
+        x      = 0
+        y      = 0
+        width  = 12
+        height = 6
+        properties = {
+          title  = "Lambda Errors (all functions)"
+          view   = "timeSeries"
+          stat   = "Sum"
+          period = 300
+          metrics = [
+            for name in var.lambda_function_names : [
+              "AWS/Lambda", "Errors",
+              "FunctionName", name,
+              { label = name }
+            ]
+          ]
+          yAxis = { left = { min = 0 } }
+        }
+      },
+      {
+        type   = "metric"
+        x      = 12
+        y      = 0
+        width  = 12
+        height = 6
+        properties = {
+          title  = "Lambda Throttles (all functions)"
+          view   = "timeSeries"
+          stat   = "Sum"
+          period = 60
+          metrics = [
+            for name in var.lambda_function_names : [
+              "AWS/Lambda", "Throttles",
+              "FunctionName", name,
+              { label = name }
+            ]
+          ]
+          yAxis = { left = { min = 0 } }
+        }
+      },
+      # ── Row 2: Lambda Duration p99 ───────────────────────────────────
+      {
+        type   = "metric"
+        x      = 0
+        y      = 6
+        width  = 12
+        height = 6
+        properties = {
+          title  = "Lambda Duration p99 (ms)"
+          view   = "timeSeries"
+          stat   = "p99"
+          period = 300
+          metrics = [
+            for name in var.lambda_function_names : [
+              "AWS/Lambda", "Duration",
+              "FunctionName", name,
+              { label = name }
+            ]
+          ]
+        }
+      },
+      # ── Row 2: Step Functions ────────────────────────────────────────
+      {
+        type   = "metric"
+        x      = 12
+        y      = 6
+        width  = 12
+        height = 6
+        properties = {
+          title  = "Step Functions Executions"
+          view   = "timeSeries"
+          period = 60
+          metrics = [
+            ["AWS/States", "ExecutionsStarted",  "StateMachineArn", data.aws_sfn_state_machine.monitored.arn, { label = "Started",  stat = "Sum" }],
+            ["AWS/States", "ExecutionsFailed",   "StateMachineArn", data.aws_sfn_state_machine.monitored.arn, { label = "Failed",   stat = "Sum", color = "#d62728" }],
+            ["AWS/States", "ExecutionsSucceeded","StateMachineArn", data.aws_sfn_state_machine.monitored.arn, { label = "Succeeded",stat = "Sum", color = "#2ca02c" }]
+          ]
+          yAxis = { left = { min = 0 } }
+        }
+      },
+      # ── Row 3: Alarm Status widget ───────────────────────────────────
+      {
+        type   = "alarm"
+        x      = 0
+        y      = 12
+        width  = 24
+        height = 4
+        properties = {
+          title  = "Pipeline Alarm Status"
+          alarms = concat(
+            ["arn:aws:cloudwatch:${var.aws_region}:${data.aws_caller_identity.current.account_id}:alarm:pipeline-health-${var.environment}"],
+            ["arn:aws:cloudwatch:${var.aws_region}:${data.aws_caller_identity.current.account_id}:alarm:pipeline-warnings-${var.environment}"]
+          )
+        }
+      }
+    ]
+  })
+}
+</code></pre>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="wiring">Wiring Everything Together</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<p>
+    The observability stack has a clear dependency order. All alarms depend on the SNS topics
+    (for <code>alarm_actions</code>). Composite alarms depend on all child alarms (referenced
+    by name in <code>alarm_rule</code>). Log metric filter alarms depend on the filters
+    (which must exist before the metric is emitted).
+  </p>
+<table>
+<thead>
+<tr><th>Layer</th><th>Resources</th><th>Depends On</th></tr>
+</thead>
+<tbody>
+<tr><td>1 – Channels</td><td><code>aws_sns_topic</code> (critical, warning)</td><td>—</td></tr>
+<tr><td>2 – Log Groups</td><td><code>aws_cloudwatch_log_group</code> (per function)</td><td>Lambda function names (variables)</td></tr>
+<tr><td>3 – Metric Filters</td><td><code>aws_cloudwatch_log_metric_filter</code></td><td>Log groups</td></tr>
+<tr><td>4 – Child Alarms</td><td><code>aws_cloudwatch_metric_alarm</code> (Lambda, SFN, DynamoDB, custom)</td><td>SNS topics, metric filters</td></tr>
+<tr><td>5 – Composite Alarms</td><td><code>aws_cloudwatch_composite_alarm</code></td><td>All child alarms (by name)</td></tr>
+<tr><td>6 – Dashboard</td><td><code>aws_cloudwatch_dashboard</code></td><td>SFN data source, variable lists</td></tr>
+<tr><td>7 – Log Insights</td><td><code>aws_cloudwatch_query_definition</code></td><td>Log groups</td></tr>
+</tbody>
+</table>
+<pre><code># outputs.tf
+
+output "critical_sns_topic_arn" {
+  description = "ARN of the critical alerts SNS topic"
+  value       = aws_sns_topic.ops_critical.arn
+}
+
+output "warning_sns_topic_arn" {
+  description = "ARN of the warning alerts SNS topic"
+  value       = aws_sns_topic.ops_warning.arn
+}
+
+output "composite_alarm_name" {
+  description = "Name of the pipeline health composite alarm"
+  value       = aws_cloudwatch_composite_alarm.pipeline_health.alarm_name
+}
+
+output "dashboard_url" {
+  description = "URL to the CloudWatch dashboard"
+  value       = "https://${var.aws_region}.console.aws.amazon.com/cloudwatch/home?region=${var.aws_region}#dashboards:name=${aws_cloudwatch_dashboard.pipeline_overview.dashboard_name}"
+}
+</code></pre>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="deploy">Deploying &amp; Testing Alarms</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h3>Deploy</h3>
+<pre><code>terraform init
+terraform plan -out=tfplan
+terraform apply tfplan
+</code></pre>
+<h3>Confirm SNS email subscriptions</h3>
+<pre><code"># Check subscription status
+aws sns list-subscriptions-by-topic \
+  --topic-arn $(terraform output -raw critical_sns_topic_arn) \
+  --query "Subscriptions[*].{Protocol:Protocol,Endpoint:Endpoint,Status:SubscriptionArn}"
+</code"></pre>
+<h3>Force an alarm into ALARM state for testing</h3>
+<pre><code"># Manually set an alarm to ALARM state to test SNS routing.
+# This does NOT affect the actual metric — it only changes the alarm state.
+aws cloudwatch set-alarm-state \
+  --alarm-name "lambda-errors-etl-pipeline-process-s3-event-dev" \
+  --state-value ALARM \
+  --state-reason "Manual test — verifying SNS routing"
+
+# Verify the composite alarm also transitions to ALARM.
+aws cloudwatch describe-alarms \
+  --alarm-names "pipeline-health-dev" \
+  --query "CompositeAlarms[0].StateValue"
+
+# Reset the alarm to OK.
+aws cloudwatch set-alarm-state \
+  --alarm-name "lambda-errors-etl-pipeline-process-s3-event-dev" \
+  --state-value OK \
+  --state-reason "Manual reset after test"
+</code"></pre>
+<h3>Trigger a real Lambda error</h3>
+<pre><code"># Invoke a Lambda with a malformed payload to trigger an error.
+aws lambda invoke \
+  --function-name etl-pipeline-process-s3-event-dev \
+  --payload '{"invalid": "payload"}' \
+  --cli-binary-format raw-in-base64-out \
+  /dev/stdout
+
+# Watch the Errors metric in CloudWatch (may take 1-2 minutes to appear).
+aws cloudwatch get-metric-statistics \
+  --namespace AWS/Lambda \
+  --metric-name Errors \
+  --dimensions Name=FunctionName,Value=etl-pipeline-process-s3-event-dev \
+  --start-time $(date -u -d '10 minutes ago' +%Y-%m-%dT%H:%M:%SZ) \
+  --end-time $(date -u +%Y-%m-%dT%H:%M:%SZ) \
+  --period 60 \
+  --statistics Sum
+</code"></pre>
+<h3>Query logs with CloudWatch Logs Insights</h3>
+<pre><code"># Run the saved Logs Insights query for Lambda errors.
+aws logs start-query \
+  --log-group-names "/aws/lambda/etl-pipeline-process-s3-event-dev" \
+  --start-time $(date -u -d '1 hour ago' +%s) \
+  --end-time $(date -u +%s) \
+  --query-string 'fields @timestamp, @message | filter @message like /\[ERROR\]/ | sort @timestamp desc | limit 20'
+
+# Get the query results (replace QUERY_ID with the value from the previous command).
+aws logs get-query-results --query-id QUERY_ID
+</code"></pre>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="runbook">Operational Runbook Guidance</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<p>
+    Alarms are only useful if responders know what to do when they fire. Document a runbook
+    for each alarm. Below is a template for the most common alarm types in this module.
+  </p>
+<div class="alarm-card">
+<h4>🔴 Lambda Errors Alarm</h4>
+<p><strong>Immediate action:</strong> Check CloudWatch Logs for the function. Look for the exception type and stack trace. Common causes: IAM permission denied, DynamoDB throttle, SNS publish failure, malformed input event. Check the EventBridge dead-letter queue if configured.</p>
+</div>
+<div class="alarm-card">
+<h4>🔴 Step Functions Execution Failed</h4>
+<p><strong>Immediate action:</strong> Open the Step Functions console, find the failed execution, and inspect the execution history. The <code>ExecutionFailed</code> event contains the error and cause. Check the specific state that failed and its Lambda function logs.</p>
+</div>
+<div class="alarm-card">
+<h4>🟡 Lambda Throttles Alarm</h4>
+<p><strong>Immediate action:</strong> Check the account-level concurrency limit and the function's reserved concurrency setting. If the function is being throttled by EventBridge, the events will be retried automatically. Consider requesting a concurrency limit increase or adding reserved concurrency.</p>
+</div>
+<div class="alarm-card">
+<h4>🟡 DynamoDB Throttled Requests</h4>
+<p><strong>Immediate action:</strong> For PAY_PER_REQUEST tables, DynamoDB throttles burst traffic. Check if there is a hot partition key. For PROVISIONED tables, increase the provisioned capacity or enable auto-scaling. Review the access pattern and consider adding a GSI or changing the key schema.</p>
+</div>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="cleanup">Cleanup</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<pre><code>terraform destroy
+</code></pre>
+<ul>
+<li>CloudWatch log groups are deleted by <code>terraform destroy</code> only if they are managed by Terraform. Log groups created automatically by Lambda (without a Terraform resource) must be deleted manually.</li>
+<li>CloudWatch dashboards are deleted immediately — no data is retained.</li>
+<li>Alarm history is retained in CloudWatch for 14 days after the alarm is deleted.</li>
+<li>SNS subscriptions in <code>PendingConfirmation</code> state are automatically deleted after 3 days.</li>
+</ul>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 id="pitfalls">Common Pitfalls</h2>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="warning">
+<p><strong>Composite alarm rule references must be exact alarm names:</strong> The <code>alarm_rule</code> expression uses <code>ALARM("alarm-name")</code> where the name must exactly match the <code>alarm_name</code> of the child alarm. If a child alarm is renamed or not yet created, the composite alarm will fail to evaluate. Use <code>depends_on</code> to ensure child alarms exist before the composite alarm is created.</p>
+</div>
+<div class="warning">
+<p><strong>Log metric filter pattern syntax is not regex:</strong> CloudWatch filter patterns use a proprietary syntax. <code>[ERROR]</code> matches the literal string <code>[ERROR]</code>. <code>ERROR</code> (without brackets) matches any line containing the word ERROR. <code>{ $.level = "ERROR" }</code> matches JSON logs. Do not use regex syntax — it will not work and may silently match nothing.</p>
+</div>
+<div class="warning">
+<p><strong>SNS topic policy must allow CloudWatch:</strong> CloudWatch alarm actions require the SNS topic policy to explicitly allow <code>SNS:Publish</code> from the <code>cloudwatch.amazonaws.com</code> service principal. Without this, alarm notifications are silently dropped — the alarm transitions to ALARM state but no message is sent.</p>
+</div>
+<ul>
+<li><strong>Alarm evaluation delay:</strong> CloudWatch metrics have a 1–2 minute ingestion delay. An alarm with <code>period = 60</code> and <code>evaluation_periods = 1</code> may take 2–3 minutes to fire after the triggering event. For faster alerting, use shorter periods (minimum 10 seconds for high-resolution metrics).</li>
+<li><strong>treat_missing_data default:</strong> The default value is <code>missing</code>, which keeps the alarm in its current state when there is no data. For alarms where no data means no invocations (e.g., the "missed schedule" alarm), use <code>breaching</code>. For alarms where no data is normal (e.g., errors on a low-traffic function), use <code>notBreaching</code>.</li>
+<li><strong>extended_statistic vs statistic:</strong> These arguments are mutually exclusive. Using both in the same resource causes a Terraform validation error. Use <code>statistic</code> for standard statistics (Sum, Average, Maximum, Minimum, SampleCount) and <code>extended_statistic</code> for percentiles (p99, p95, etc.).</li>
+<li><strong>Dashboard widget metric arrays:</strong> The CloudWatch dashboard JSON uses a specific array format for metrics: <code>["namespace", "metric_name", "dimension_name", "dimension_value", {options}]</code>. Incorrect array structure causes the widget to display "No data" without an error message.</li>
+<li><strong>Log group name must match Lambda's auto-created name:</strong> Lambda creates log groups named <code>/aws/lambda/&lt;function-name&gt;</code>. If your Terraform log group name does not match exactly, you will have two log groups — one managed by Terraform (with retention) and one created by Lambda (with infinite retention).</li>
+<li><strong>for_each with alarm names in composite rules:</strong> When using <code>for_each</code> to create per-function alarms, the composite alarm's <code>alarm_rule</code> must reference the exact alarm names generated by <code>for_each</code>. Use Terraform's <code>join()</code> and list comprehensions (as shown) to build the rule dynamically.</li>
+</ul>
+<div class="note">
+<p><strong>Best practice — alarm naming convention:</strong> Use a consistent naming pattern: <code>&lt;service&gt;-&lt;metric&gt;-&lt;resource-name&gt;-&lt;environment&gt;</code>. This makes alarms sortable and filterable in the CloudWatch console, and makes composite alarm rules readable. Avoid spaces and special characters in alarm names.</p>
+</div>
+<div class="note">
+<p><strong>Best practice — alarm-to-runbook linking:</strong> Set the <code>alarm_description</code> to include a link to the runbook for that alarm (e.g., a Confluence page or GitHub wiki URL). When an on-call engineer receives an SNS notification at 3 AM, the runbook link in the alarm description is the fastest path to resolution.</p>
+</div>
+</div>
+</body>
+</html>
